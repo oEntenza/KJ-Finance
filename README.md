@@ -270,8 +270,7 @@ Exemplos de valores aceitos:
 
 ## Autores
 
-**João Victor Entenza Santos**
-**Kailane de Moura Rodrigues**
+**João Victor Entenza Santos e Kailane de Moura Rodrigues**
 
 Projeto desenvolvido como Trabalho de Conclusão de Curso.
 

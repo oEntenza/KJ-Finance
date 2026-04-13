@@ -1,4 +1,4 @@
-﻿# K&J Finance
+# K&J Finance
 
 Sistema web de controle financeiro pessoal desenvolvido como projeto de TCC, com foco em organização do fluxo de caixa, visualização analítica e experiência de uso moderna.
 
@@ -109,42 +109,19 @@ Principais rotas:
 - `GET /transactions/balance`: cálculo do patrimônio líquido.
 - `POST /transactions/bulk`: importação em massa de registros.
 
-## Modelagem de dados
+## Instalação simplificada no Windows
 
-O banco possui duas entidades principais:
+Para facilitar o uso em outro computador, o projeto possui dois atalhos:
 
-### User
+- `Instalar KJ Finance.bat`: instala as dependências e prepara o `.env` do backend.
+- `Iniciar KJ Finance.bat`: gera o build do frontend, inicia o servidor e abre o sistema no navegador.
 
-- `id`
-- `name`
-- `email`
-- `password_hash`
-- `createdAt`
+Fluxo recomendado para um novo computador:
 
-### Transaction
-
-- `id`
-- `description`
-- `amount`
-- `type`
-- `category`
-- `date`
-- `createdAt`
-- `updatedAt`
-- `userId`
-
-### Categorias suportadas
-
-- `SALARY`
-- `CREDIT_CARD`
-- `HOUSING`
-- `TRANSPORT`
-- `FOOD`
-- `HEALTH_WELLNESS`
-- `LEISURE_ENTERTAINMENT`
-- `EDUCATION`
-- `FINANCE_INVESTMENTS`
-- `OTHERS`
+1. Instalar o Node.js.
+2. Abrir `Instalar KJ Finance.bat`.
+3. Preencher a `DATABASE_URL` do Neon no arquivo `KJ_Back/.env`.
+4. Abrir `Iniciar KJ Finance.bat`.
 
 ## Como executar o projeto
 
@@ -232,6 +209,43 @@ O frontend ficará disponível em:
 http://localhost:5173
 ```
 
+## Modelagem de dados
+
+O banco possui duas entidades principais:
+
+### User
+
+- `id`
+- `name`
+- `email`
+- `password_hash`
+- `createdAt`
+
+### Transaction
+
+- `id`
+- `description`
+- `amount`
+- `type`
+- `category`
+- `date`
+- `createdAt`
+- `updatedAt`
+- `userId`
+
+### Categorias suportadas
+
+- `SALARY`
+- `CREDIT_CARD`
+- `HOUSING`
+- `TRANSPORT`
+- `FOOD`
+- `HEALTH_WELLNESS`
+- `LEISURE_ENTERTAINMENT`
+- `EDUCATION`
+- `FINANCE_INVESTMENTS`
+- `OTHERS`
+
 ## Importação por planilha
 
 O sistema possui importação em massa por arquivo Excel.
@@ -268,7 +282,7 @@ Exemplos de valores aceitos:
 - dashboard administrativo;
 - deploy em nuvem com domínio próprio.
 
-## Autores
+## Autor
 
 **João Victor Entenza Santos e Kailane de Moura Rodrigues**
 

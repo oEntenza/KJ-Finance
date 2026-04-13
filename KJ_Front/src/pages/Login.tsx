@@ -58,7 +58,7 @@ export function Login() {
                   {...register('email')}
                   required
                   className="w-full bg-[var(--color-bg-alt)] border border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-gray-200 focus:border-[var(--color-accent)]/50 outline-none transition-all placeholder:text-gray-700 text-sm"
-                  placeholder="admin@kaofinance.com"
+                  placeholder="user@kjfinance.com"
                 />
               </div>
             </div>

@@ -1,7 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import { compare } from 'bcryptjs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { prisma } from './lib/prisma';
 import { transactionRoutes } from './routes/transactions';
 import { userRoutes } from './routes/users';
@@ -21,7 +23,7 @@ app.register(cors, {
 app.decorate('authenticate', async (request, reply) => {
   try {
     await request.jwtVerify();
-  } catch (err) {
+  } catch {
     reply.status(401).send({ message: 'Sessão expirada ou não autorizado.' });
   }
 });
@@ -40,9 +42,13 @@ declare module 'fastify' {
   }
 }
 
+app.get('/health', async () => {
+  return { status: 'ok' };
+});
+
 app.put('/transactions/:id', { onRequest: [app.authenticate] }, async (request, reply) => {
   const { id } = request.params as { id: string };
-  const { description, amount, category, date } = request.body as any;
+  const { description, amount, type, category, date } = request.body as any;
   const userId = request.user.sub;
 
   try {
@@ -54,6 +60,7 @@ app.put('/transactions/:id', { onRequest: [app.authenticate] }, async (request, 
       data: {
         description,
         amount: Number(amount),
+        type,
         category,
         date: new Date(date),
       },
@@ -185,6 +192,48 @@ app.post('/transactions/bulk', { onRequest: [app.authenticate] }, async (request
 app.register(authRoutes);
 app.register(transactionRoutes);
 app.register(userRoutes);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontDistPath = path.resolve(__dirname, '../../KJ_Front/dist');
+
+const mimeTypes: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json; charset=utf-8',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function getMimeType(filePath: string) {
+  return mimeTypes[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
+}
+
+app.get('/*', async (request, reply) => {
+  if (!existsSync(frontDistPath)) {
+    return reply.status(503).type('text/plain; charset=utf-8').send(
+      'Build do frontend não encontrado. Execute "npm run build" em KJ_Front antes de iniciar o modo de produção.',
+    );
+  }
+
+  const requestedPath = ((request.params as { '*': string })['*'] || '').trim();
+  const safePath = requestedPath.replace(/^\/+/, '');
+  const resolvedPath = path.resolve(frontDistPath, safePath);
+
+  if (safePath && resolvedPath.startsWith(frontDistPath) && existsSync(resolvedPath) && statSync(resolvedPath).isFile()) {
+    return reply.type(getMimeType(resolvedPath)).send(readFileSync(resolvedPath));
+  }
+
+  const indexPath = path.join(frontDistPath, 'index.html');
+  return reply.type('text/html; charset=utf-8').send(readFileSync(indexPath, 'utf-8'));
+});
 
 const start = async () => {
   try {

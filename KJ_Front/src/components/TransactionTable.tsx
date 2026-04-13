@@ -1,4 +1,4 @@
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Tag, Edit3, Check, X, Trash2, Square, CheckSquare, ChevronUp, ChevronDown } from 'lucide-react';
+﻿import { ArrowUpCircle, ArrowDownCircle, Calendar, Tag, Edit3, Check, X, Trash2, Square, CheckSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import React, { useEffect, useMemo, useState, useImperativeHandle, forwardRef } from 'react';
 import { api } from '../lib/api';
 import { useDialog } from './DialogProvider';
@@ -293,6 +293,7 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
             </th>
             <th className="px-6 py-3">Descrição</th>
             <th className="px-6 py-3">Valor</th>
+            <th className="px-6 py-3">Natureza</th>
             <th className="px-6 py-3">Categoria</th>
             <th className="px-6 py-3">Data</th>
             <th className="px-6 py-3 text-right">Ações</th>
@@ -381,6 +382,26 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
                 <td className="px-6 py-4 border-y border-gray-800/50">
                   {isEditing ? (
                     <SelectDropdown
+                      value={String(currentEdit.type ?? '')}
+                      onChange={(value) => setEditData((prev) => ({
+                        ...prev,
+                        [transaction.id]: { ...currentEdit, type: value as any },
+                      }))}
+                      options={[
+                        { value: 'INCOME', label: 'Crédito' },
+                        { value: 'EXPENSE', label: 'Débito' },
+                      ]}
+                    />
+                  ) : (
+                    <span className={`text-sm font-medium ${transaction.type === 'INCOME' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {transaction.type === 'INCOME' ? 'Crédito' : 'Débito'}
+                    </span>
+                  )}
+                </td>
+
+                <td className="px-6 py-4 border-y border-gray-800/50">
+                  {isEditing ? (
+                    <SelectDropdown
                       value={String(currentEdit.category ?? '')}
                       onChange={(value) => setEditData((prev) => ({
                         ...prev,
@@ -463,3 +484,5 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
     </div>
   );
 });
+
+

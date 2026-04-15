@@ -14,13 +14,13 @@ export async function userRoutes(app: FastifyInstance) {
 
     const { name, email, password } = createUserSchema.parse(request.body);
 
-    // 1. Verificar se o e-mail jÃ¡ existe
+    // 1. Verificar se o e-mail já existe
     const userWithSameEmail = await prisma.user.findUnique({
       where: { email },
     });
 
     if (userWithSameEmail) {
-      return reply.status(400).send({ message: 'E-mail jÃ¡ cadastrado.' });
+      return reply.status(400).send({ message: 'E-mail já cadastrado.' });
     }
 
     // 2. Criptografar a senha

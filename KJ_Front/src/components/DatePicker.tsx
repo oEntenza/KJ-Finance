@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type DatePickerProps = {
@@ -8,7 +8,7 @@ type DatePickerProps = {
   className?: string;
 };
 
-const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b'];
 
 function toDisplay(value: string) {
   if (!value) return '';
@@ -27,6 +27,7 @@ function toISO(date: Date) {
 export function DatePicker({ value, onChange, placeholder = 'Selecionar data', className = '' }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMonthYearOpen, setIsMonthYearOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (value) {
       return new Date(`${value}T12:00:00`);
@@ -53,7 +54,9 @@ export function DatePicker({ value, onChange, placeholder = 'Selecionar data', c
       }
     }
 
-    if (isOpen) {
+    if (isOpen && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setAlignRight(rect.left + 288 > window.innerWidth - 16);
       document.addEventListener('mousedown', handleOutside);
     }
 
@@ -100,7 +103,7 @@ export function DatePicker({ value, onChange, placeholder = 'Selecionar data', c
   }, [currentMonth]);
 
   return (
-    <div ref={wrapperRef} className={`relative ${className}`}>
+    <div ref={wrapperRef} className={`relative min-w-0 ${className}`}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -115,7 +118,7 @@ export function DatePicker({ value, onChange, placeholder = 'Selecionar data', c
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72">
+        <div className={`absolute top-full z-[80] mt-2 w-72 max-w-[calc(100vw-2rem)] ${alignRight ? 'right-0 left-auto' : 'left-0 right-auto'}`}>
           <div className="rounded-2xl border border-transparent bg-[var(--color-bg)] p-4 shadow-2xl modal-gold-border gold-border-relative">
           <div className="flex items-center justify-between mb-3">
             <button
@@ -223,3 +226,5 @@ export function DatePicker({ value, onChange, placeholder = 'Selecionar data', c
     </div>
   );
 }
+
+

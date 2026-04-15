@@ -269,7 +269,7 @@ export function Analytics() {
       <DashboardHeader />
 
       <main className="w-full px-8 py-12 space-y-8">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <header className="relative z-20 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
           <div>
             <h1 className="text-4xl font-light tracking-tight italic">
               Analytics <span className="font-bold text-[var(--color-accent)]">K&J</span>
@@ -277,10 +277,10 @@ export function Analytics() {
             <p className="text-gray-500 text-sm mt-1 uppercase tracking-[0.2em]">Gestão analítica de capital</p>
           </div>
 
-          <div className="flex items-center gap-4 px-4 py-3 bg-[var(--color-surface)]/40 border border-gray-800 rounded-2xl shadow-sm backdrop-blur-sm">
+          <div className="w-full xl:w-auto max-w-full xl:ml-auto px-4 py-3 bg-[var(--color-surface)]/40 border border-gray-800 rounded-2xl shadow-sm backdrop-blur-sm">
             <div>
               <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Selecione o período</p>
-              <div className="flex flex-col sm:flex-row gap-3 mt-2 w-full md:w-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2 w-full xl:w-auto">
                 <DatePicker value={startDate} onChange={setStartDate} placeholder="Data inicial" className="w-full sm:w-[180px]" />
                 <DatePicker value={endDate} onChange={setEndDate} placeholder="Data final" className="w-full sm:w-[180px]" />
               </div>
@@ -430,4 +430,5 @@ export function Analytics() {
     </div>
   );
 }
+
 

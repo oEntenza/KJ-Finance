@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+﻿import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import React, { useEffect, useState } from 'react';
@@ -151,7 +151,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
     if (typeof rawDate === 'number') {
       const parsed = XLSX.SSF.parse_date_code(rawDate);
       if (!parsed) {
-        throw new Error(`Linha ${rowIndex + 2}: Data inválida.`);
+        throw new Error(`Linha ${rowIndex + 2}: Data invÃ¡lida.`);
       }
       const month = String(parsed.m).padStart(2, '0');
       const day = String(parsed.d).padStart(2, '0');
@@ -169,7 +169,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
     const date = new Date(`${formatted}T12:00:00`);
     if (Number.isNaN(date.getTime())) {
-      throw new Error(`Linha ${rowIndex + 2}: Data "${value}" inválida.`);
+      throw new Error(`Linha ${rowIndex + 2}: Data "${value}" invÃ¡lida.`);
     }
 
     return date.toISOString();
@@ -210,7 +210,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
     try {
       const workbook = XLSX.read(bulkFileData, { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (!firstSheet) throw new Error('A planilha está vazia.');
+      if (!firstSheet) throw new Error('A planilha estÃ¡ vazia.');
 
       const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: true }) as Array<Array<string | number | Date>>;
       if (rows.length < 2) throw new Error('A planilha precisa ter pelo menos uma linha de dados.');
@@ -226,7 +226,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       const paymentMethodIndex = mapIndex('meiodepagamento');
 
       if ([descIndex, amountIndex, typeIndex, categoryIndex, dateIndex, paymentMethodIndex].some((value) => value === -1)) {
-        throw new Error('Cabeçalhos inválidos. Use: Descrição, Valor, Tipo, Categoria, Data, Meio de Pagamento.');
+        throw new Error('CabeÃ§alhos invÃ¡lidos. Use: DescriÃ§Ã£o, Valor, Tipo, Categoria, Data, Meio de Pagamento.');
       }
 
       const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''));
@@ -244,18 +244,18 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
         const amount = parseAmount(row[amountIndex] as any);
         if (!Number.isFinite(amount) || amount <= 0) {
-          throw new Error(`Linha ${rowIndex + 2}: valor inválido.`);
+          throw new Error(`Linha ${rowIndex + 2}: valor invÃ¡lido.`);
         }
 
-        const type = rawType.toLowerCase().includes('cr') ? 'INCOME' : rawType.toLowerCase().includes('dé') || rawType.toLowerCase().includes('de') ? 'EXPENSE' : rawType.toUpperCase();
+        const type = rawType.toLowerCase().includes('cr') ? 'INCOME' : rawType.toLowerCase().includes('dÃ©') || rawType.toLowerCase().includes('de') ? 'EXPENSE' : rawType.toUpperCase();
         const category = normalizeCategoryInput(rawCategory);
         if (!category) {
-          throw new Error(`Linha ${rowIndex + 2}: categoria inválida.`);
+          throw new Error(`Linha ${rowIndex + 2}: categoria invÃ¡lida.`);
         }
 
         const payment = normalizePaymentMethodInput(rawPaymentMethod);
         if (!payment) {
-          throw new Error(`Linha ${rowIndex + 2}: meio de pagamento inválido.`);
+          throw new Error(`Linha ${rowIndex + 2}: meio de pagamento invÃ¡lido.`);
         }
 
         let creditCardId: string | null = null;
@@ -289,17 +289,17 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       setBulkFileData(null);
       setIsBulkModalOpen(false);
       onTransactionCreated();
-      await dialog.alert({ title: 'Importação concluída', message: 'A importação em massa foi realizada com sucesso!' });
+      await dialog.alert({ title: 'ImportaÃ§Ã£o concluÃ­da', message: 'A importaÃ§Ã£o em massa foi realizada com sucesso!' });
     } catch (err: any) {
       await dialog.alert({
-        title: 'Falha na importação',
-        message: err.response?.data?.detail || err.response?.data?.message || err.message || 'Erro na formatação dos dados.',
+        title: 'Falha na importaÃ§Ã£o',
+        message: err.response?.data?.detail || err.response?.data?.message || err.message || 'Erro na formataÃ§Ã£o dos dados.',
       });
     }
   }
 
   function handleDownloadTemplate() {
-    const headers = ['Descrição', 'Valor', 'Tipo', 'Categoria', 'Data', 'Meio de Pagamento'];
+    const headers = ['DescriÃ§Ã£o', 'Valor', 'Tipo', 'Categoria', 'Data', 'Meio de Pagamento'];
     const worksheet = XLSX.utils.aoa_to_sheet([headers]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Modelo');
@@ -332,8 +332,8 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       await fetchCards();
     } catch (err: any) {
       await dialog.alert({
-        title: 'Falha na operação',
-        message: err.response?.data?.message || err.message || 'Falha na comunicação com o servidor K&J.',
+        title: 'Falha na operaÃ§Ã£o',
+        message: err.response?.data?.message || err.message || 'Falha na comunicaÃ§Ã£o com o servidor K&J.',
       });
     }
   }
@@ -416,8 +416,8 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
         </div>
 
         {selectedPaymentMethod === 'CREDIT_CARD' && (
-          <div className="gold-border gold-border-relative grid grid-cols-1 lg:grid-cols-3 gap-4 rounded-2xl border border-transparent bg-[var(--color-bg)] p-4">
-            <div className="lg:col-span-3 flex items-center justify-between">
+          <div className="gold-border gold-border-relative grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 rounded-2xl border border-transparent bg-[var(--color-bg)] p-4">
+            <div className="md:col-span-2 xl:col-span-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[var(--color-accent)]/10 rounded-lg text-[var(--color-accent)]">
                   <CreditCard size={16} />
@@ -436,7 +436,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
             {cards.length > 0 ? (
               <>
-                <div className="lg:col-span-2">
+                <div className="md:col-span-1 xl:col-span-3">
                   <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Cartão</label>
                   <input type="hidden" {...register('creditCardId')} />
                   <SelectDropdown
@@ -492,6 +492,20 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
                   </div>
                 </div>
                 <div>
+                  <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Fechamento da fatura</label>
+                  <div className="relative">
+                    <input value={newCardClosingDay} onChange={(event) => handleClosingDayChange(event.target.value)} type="number" min="1" max="31" placeholder="Dia do fechamento da fatura" className="no-spinner w-full bg-[var(--color-surface)] border border-gray-800 p-3 pr-10 rounded-xl text-sm text-gray-200 outline-none focus:border-[var(--color-accent)]/50" />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
+                      <button type="button" onClick={() => updateClosingDay(1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
+                        <ChevronUp size={14} />
+                      </button>
+                      <button type="button" onClick={() => updateClosingDay(-1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
+                        <ChevronDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div>
                   <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Parcelas</label>
                   <input type="hidden" {...register('installments', { valueAsNumber: true })} />
                   <div className="relative">
@@ -513,20 +527,6 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
                     </div>
                   </div>
                   <p className="mt-1 text-[10px] text-gray-500">1x para compra à vista no cartão.</p>
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Fechamento da fatura</label>
-                  <div className="relative">
-                    <input value={newCardClosingDay} onChange={(event) => handleClosingDayChange(event.target.value)} type="number" min="1" max="31" placeholder="Dia do fechamento da fatura" className="no-spinner w-full bg-[var(--color-surface)] border border-gray-800 p-3 pr-10 rounded-xl text-sm text-gray-200 outline-none focus:border-[var(--color-accent)]/50" />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                      <button type="button" onClick={() => updateClosingDay(1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
-                        <ChevronUp size={14} />
-                      </button>
-                      <button type="button" onClick={() => updateClosingDay(-1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
-                        <ChevronDown size={14} />
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </>
             )}
@@ -564,7 +564,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
                       setBulkFileData(reader.result);
                     }
                   };
-                  reader.onerror = () => dialog.alert({ title: 'Falha ao ler arquivo', message: 'O arquivo não pôde ser lido. Verifique as permissões e tente novamente.' });
+                  reader.onerror = () => dialog.alert({ title: 'Falha ao ler arquivo', message: 'O arquivo não pode ser lido. Verifique as permissões e tente novamente.' });
                   reader.readAsArrayBuffer(file);
                 }} className="absolute inset-0 opacity-0 cursor-pointer" />
                 <div className="flex flex-col items-center gap-2 text-gray-400">
@@ -596,3 +596,4 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
     </section>
   );
 }
+

@@ -169,7 +169,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
     const date = new Date(`${formatted}T12:00:00`);
     if (Number.isNaN(date.getTime())) {
-      throw new Error(`Linha ${rowIndex + 2}: Data "${value}" invÃ¡lida.`);
+      throw new Error(`Linha ${rowIndex + 2}: Data "${value}" inválida.`);
     }
 
     return date.toISOString();
@@ -226,7 +226,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       const paymentMethodIndex = mapIndex('meiodepagamento');
 
       if ([descIndex, amountIndex, typeIndex, categoryIndex, dateIndex, paymentMethodIndex].some((value) => value === -1)) {
-        throw new Error('CabeÃ§alhos invÃ¡lidos. Use: DescriÃ§Ã£o, Valor, Tipo, Categoria, Data, Meio de Pagamento.');
+        throw new Error('Cabeçalhos inválidos. Use: Descrição, Valor, Tipo, Categoria, Data, Meio de Pagamento.');
       }
 
       const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''));
@@ -244,18 +244,18 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
         const amount = parseAmount(row[amountIndex] as any);
         if (!Number.isFinite(amount) || amount <= 0) {
-          throw new Error(`Linha ${rowIndex + 2}: valor invÃ¡lido.`);
+          throw new Error(`Linha ${rowIndex + 2}: valor inválido.`);
         }
 
         const type = rawType.toLowerCase().includes('cr') ? 'INCOME' : rawType.toLowerCase().includes('dÃ©') || rawType.toLowerCase().includes('de') ? 'EXPENSE' : rawType.toUpperCase();
         const category = normalizeCategoryInput(rawCategory);
         if (!category) {
-          throw new Error(`Linha ${rowIndex + 2}: categoria invÃ¡lida.`);
+          throw new Error(`Linha ${rowIndex + 2}: categoria inválida.`);
         }
 
         const payment = normalizePaymentMethodInput(rawPaymentMethod);
         if (!payment) {
-          throw new Error(`Linha ${rowIndex + 2}: meio de pagamento invÃ¡lido.`);
+          throw new Error(`Linha ${rowIndex + 2}: meio de pagamento inválido.`);
         }
 
         let creditCardId: string | null = null;
@@ -289,11 +289,11 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       setBulkFileData(null);
       setIsBulkModalOpen(false);
       onTransactionCreated();
-      await dialog.alert({ title: 'ImportaÃ§Ã£o concluÃ­da', message: 'A importaÃ§Ã£o em massa foi realizada com sucesso!' });
+      await dialog.alert({ title: 'Importação concluída', message: 'A importação em massa foi realizada com sucesso!' });
     } catch (err: any) {
       await dialog.alert({
-        title: 'Falha na importaÃ§Ã£o',
-        message: err.response?.data?.detail || err.response?.data?.message || err.message || 'Erro na formataÃ§Ã£o dos dados.',
+        title: 'Falha na importação',
+        message: err.response?.data?.detail || err.response?.data?.message || err.message || 'Erro na formatação dos dados.',
       });
     }
   }
@@ -332,8 +332,8 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
       await fetchCards();
     } catch (err: any) {
       await dialog.alert({
-        title: 'Falha na operaÃ§Ã£o',
-        message: err.response?.data?.message || err.message || 'Falha na comunicaÃ§Ã£o com o servidor K&J.',
+        title: 'Falha na operação',
+        message: err.response?.data?.message || err.message || 'Falha na comunicação com o servidor K&J.',
       });
     }
   }

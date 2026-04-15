@@ -34,7 +34,7 @@ O principal objetivo do sistema é oferecer uma solução prática e visual para
 - Página de Analytics com gráficos de evolução e distribuição por categoria.
 - Página de perfil com edição de nome persistida no banco de dados.
 - Página de preferências com seleção de tema.
-- Temas visuais `Noir` e `Claro`.
+- Temas visuais `Noir` e `Blanc`.
 
 ## Tecnologias utilizadas
 

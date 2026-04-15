@@ -1,7 +1,8 @@
-import { FastifyInstance } from 'fastify';
+﻿import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { compare } from 'bcryptjs';
-import { prisma } from '../lib/prisma';
+import { AuthService } from '../services/auth-service';
+
+const authService = new AuthService();
 
 export async function authRoutes(app: FastifyInstance) {
   app.post('/sessions', async (request, reply) => {
@@ -12,37 +13,26 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { email, password } = authenticateBodySchema.parse(request.body);
 
-    // 1. Buscar usuário no Neon
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    try {
+      const user = await authService.authenticate(email, password);
 
-    if (!user) {
-      return reply.status(400).send({ message: 'E-mail ou senha inválidos.' });
+      const token = await reply.jwtSign({}, {
+        sign: {
+          sub: user.id,
+          expiresIn: '7d',
+        },
+      });
+
+      return reply.status(200).send({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        token,
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ message: error.message || 'Falha na autenticação.' });
     }
-
-    // 2. Comparar a senha enviada com o hash do banco
-    const isPasswordValid = await compare(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      return reply.status(400).send({ message: 'E-mail ou senha inválidos.' });
-    }
-
-    // 3. Gerar o Token JWT
-    const token = await reply.jwtSign({}, {
-      sign: {
-        sub: user.id, // O ID do usuário fica "escondido" dentro do token
-        expiresIn: '7d', // O login dura 7 dias
-      },
-    });
-
-    return reply.status(200).send({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
-      token,
-    });
   });
 }

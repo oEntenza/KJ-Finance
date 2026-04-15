@@ -423,8 +423,8 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
                   <CreditCard size={16} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Cartão de crédito</p>
-                  <p className="text-[11px] text-gray-400">{cards.length > 0 ? 'Selecione o cartão para consolidar a fatura.' : 'Primeiro uso detectado: informe o cartão e o fechamento da fatura.'}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Primeiro cartão de crédito</p>
+                  <p className="text-[11px] text-gray-400">{cards.length > 0 ? 'Selecione o cartão para consolidar a fatura.' : 'Informe o cartão e o fechamento da fatura.'}</p>
                 </div>
               </div>
               {cards.length > 0 && (

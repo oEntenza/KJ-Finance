@@ -47,7 +47,7 @@ export function Login() {
 
         <div className="bg-[var(--color-surface)] border border-gray-800/50 p-10 rounded-[2.5rem] shadow-2xl backdrop-blur-sm relative overflow-hidden modal-gold-border">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--color-accent)]/40 to-transparent"></div>
-
+ 
           <form onSubmit={handleSubmit(handleLogin)} className="space-y-7">
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Credencial de Acesso</label>

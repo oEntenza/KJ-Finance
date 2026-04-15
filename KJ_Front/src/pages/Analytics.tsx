@@ -1,52 +1,62 @@
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, BarChart, Bar, Cell, AreaChart, Area, PieChart, Pie,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
-import { LayoutDashboard, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { DashboardHeader } from '../components/DashboardHeader';
 import { DatePicker } from '../components/DatePicker';
 import { api } from '../lib/api';
+import { CATEGORY_LABELS } from '../lib/finance';
 
 const COLORS = [
-  '#60c06d',
   '#60A5FA',
-  '#F87171',
+  '#F97316',
+  '#FB7185',
   '#A78BFA',
   '#FBBF24',
-  '#94a3b8',
-  '#22d3ee',
-  '#f97316',
-  '#e879f9',
-  '#84cc16',
-  '#38bdf8',
-  '#f43f5e',
+  '#94A3B8',
+  '#22D3EE',
+  '#84CC16',
+  '#34D399',
 ];
-const CATEGORY_LABELS: Record<string, string> = {
-  salary: 'Salário',
-  credit_card: 'Cartão de Crédito',
-  housing: 'Habitação',
-  transport: 'Transporte',
-  food: 'Alimentação',
-  health_wellness: 'Saúde e Bem-estar',
-  leisure_entertainment: 'Lazer e entretenimento',
-  education: 'Educação',
-  finance_investments: 'Finanças e Investimentos',
-  others: 'Outros',
-};
+
+interface CreditCardSummary {
+  id: string;
+  name: string;
+}
+
+interface TransactionItem {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'INCOME' | 'EXPENSE';
+  category: string;
+  paymentMethod: string;
+  date: string;
+  isCardStatement?: boolean;
+  creditCard?: CreditCardSummary | null;
+  childTransactions?: TransactionItem[];
+}
 
 function toISODate(value: Date) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
   const day = String(value.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function normalizeDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function parseISODate(value: string) {
@@ -56,6 +66,21 @@ function parseISODate(value: string) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+function flattenTransactionsForAnalytics(transactions: TransactionItem[]) {
+  const flattened: TransactionItem[] = [];
+
+  transactions.forEach((transaction) => {
+    if (transaction.isCardStatement) {
+      (transaction.childTransactions || []).forEach((child) => flattened.push(child));
+      return;
+    }
+
+    flattened.push(transaction);
+  });
+
+  return flattened;
+}
+
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const value = payload[0].value;
@@ -63,9 +88,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 
     return (
       <div className="bg-[var(--color-bg)] border border-gray-800 p-3 rounded-lg shadow-2xl backdrop-blur-md">
-        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">
-          {payload[0].payload.name}
-        </p>
+        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">{payload[0].payload.name}</p>
         <p className="text-xs font-mono">
           <span className="text-gray-400">Saldo: </span>
           <span className="font-bold" style={{ color: isPositive ? 'var(--color-accent)' : '#F87171' }}>
@@ -80,23 +103,23 @@ const CustomTooltip = ({ active, payload }: any) => {
       </div>
     );
   }
+
   return null;
 };
 
 export function Analytics() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(() => localStorage.getItem('@KAO:analyticsStartDate') || '');
   const [endDate, setEndDate] = useState(() => localStorage.getItem('@KAO:analyticsEndDate') || '');
-  const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/transactions');
-      setTransactions(response.data.transactions || []);
-    } catch (err) {
-      console.error('Erro no K&J Intelligence:', err);
+      setTransactions(flattenTransactionsForAnalytics(response.data.transactions || []));
+    } catch (error) {
+      console.error('Erro no K&J Intelligence:', error);
     } finally {
       setLoading(false);
     }
@@ -119,23 +142,19 @@ export function Analytics() {
   }, []);
 
   useEffect(() => {
-    if (startDate) {
-      localStorage.setItem('@KAO:analyticsStartDate', startDate);
-    }
+    if (startDate) localStorage.setItem('@KAO:analyticsStartDate', startDate);
   }, [startDate]);
 
   useEffect(() => {
-    if (endDate) {
-      localStorage.setItem('@KAO:analyticsEndDate', endDate);
-    }
+    if (endDate) localStorage.setItem('@KAO:analyticsEndDate', endDate);
   }, [endDate]);
 
   const filteredTransactions = useMemo(() => {
     const start = parseISODate(startDate);
     const end = parseISODate(endDate);
 
-    return transactions.filter((t) => {
-      const date = normalizeDate(t.date);
+    return transactions.filter((transaction) => {
+      const date = parseISODate(transaction.date.split('T')[0] || transaction.date);
       if (!date) return false;
       if (start && date < start) return false;
       if (end && date > end) return false;
@@ -144,14 +163,11 @@ export function Analytics() {
   }, [transactions, startDate, endDate]);
 
   const chartData = useMemo(() => {
-    if (!filteredTransactions || filteredTransactions.length === 0) return [];
+    if (!filteredTransactions.length) return [];
 
     const sortedTransactions = [...filteredTransactions].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
-
-    const monthlyGroups: Record<string, any> = {};
-    let runningTotal = 0;
 
     const monthFormatter = new Intl.DateTimeFormat('pt-BR', {
       month: 'short',
@@ -159,8 +175,11 @@ export function Analytics() {
       timeZone: 'UTC',
     });
 
-    sortedTransactions.forEach((t) => {
-      const date = new Date(t.date);
+    const monthlyGroups: Record<string, any> = {};
+    let runningTotal = 0;
+
+    sortedTransactions.forEach((transaction) => {
+      const date = new Date(transaction.date);
       const monthLabel = monthFormatter.format(date);
 
       if (!monthlyGroups[monthLabel]) {
@@ -173,8 +192,8 @@ export function Analytics() {
         };
       }
 
-      const amount = Number(t.amount);
-      if (t.type === 'INCOME') {
+      const amount = Number(transaction.amount);
+      if (transaction.type === 'INCOME') {
         monthlyGroups[monthLabel].income += amount;
         runningTotal += amount;
       } else {
@@ -182,8 +201,8 @@ export function Analytics() {
         runningTotal -= amount;
       }
 
-      const catKey = t.category.toLowerCase();
-      monthlyGroups[monthLabel][catKey] = (monthlyGroups[monthLabel][catKey] || 0) + amount;
+      const categoryKey = String(transaction.category).toLowerCase();
+      monthlyGroups[monthLabel][categoryKey] = (monthlyGroups[monthLabel][categoryKey] || 0) + amount;
       monthlyGroups[monthLabel].balance = monthlyGroups[monthLabel].income - monthlyGroups[monthLabel].expense;
       monthlyGroups[monthLabel].cumulative = runningTotal;
     });
@@ -192,38 +211,40 @@ export function Analytics() {
   }, [filteredTransactions]);
 
   const categories = useMemo(() => {
-    const set = new Set(filteredTransactions.map((t) => t.category.toLowerCase()));
-    return Array.from(set);
+    const orderedKeys = Object.keys(CATEGORY_LABELS).map((key) => key.toLowerCase());
+    return orderedKeys.filter((key) => filteredTransactions.some((transaction) => transaction.category.toLowerCase() === key));
   }, [filteredTransactions]);
 
   const categoryPieData = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredTransactions.forEach((t) => {
-      if (t.type !== 'EXPENSE') return;
-      const key = String(t.category).toLowerCase();
-      map.set(key, (map.get(key) || 0) + Number(t.amount));
+    const categoryMap = new Map<string, number>();
+
+    filteredTransactions.forEach((transaction) => {
+      if (transaction.type !== 'EXPENSE') return;
+      const key = String(transaction.category).toLowerCase();
+      categoryMap.set(key, (categoryMap.get(key) || 0) + Number(transaction.amount));
     });
-    return Array.from(map.entries()).map(([key, value]) => ({
-      name: CATEGORY_LABELS[key] ?? key.replace(/_/g, ' '),
-      value,
+
+    return Array.from(categoryMap.entries()).map(([key, value]) => ({
       key,
+      name: CATEGORY_LABELS[key.toUpperCase()] ?? key.replace(/_/g, ' '),
+      value,
     }));
   }, [filteredTransactions]);
 
   const totalExpense = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'EXPENSE')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .filter((transaction) => transaction.type === 'EXPENSE')
+      .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
   }, [filteredTransactions]);
 
   const topCategory = useMemo(() => {
     if (!categoryPieData.length) return null;
-    const sorted = [...categoryPieData].sort((a, b) => b.value - a.value);
-    return sorted[0];
+    return [...categoryPieData].sort((a, b) => b.value - a.value)[0];
   }, [categoryPieData]);
 
   const categoryDetails = useMemo(() => {
     if (!categoryPieData.length || totalExpense === 0) return [];
+
     return [...categoryPieData]
       .sort((a, b) => b.value - a.value)
       .map((entry, index) => ({
@@ -233,12 +254,11 @@ export function Analytics() {
       }));
   }, [categoryPieData, totalExpense]);
 
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-[var(--color-accent)] font-mono animate-pulse uppercase tracking-widest text-xs">
-          Sincronizando Dados Neon...
+          Sincronizando dados Neon...
         </div>
       </div>
     );
@@ -248,53 +268,43 @@ export function Analytics() {
     <div className="min-h-screen bg-[var(--color-bg)] text-gray-100 font-sans">
       <DashboardHeader />
 
-      <main className="px-8 py-12 max-w-[1600px] mx-auto space-y-12">
+      <main className="w-full px-8 py-12 space-y-8">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <h1 className="text-4xl font-light tracking-tight italic">
-              K&J <span className="font-bold text-[var(--color-accent)] not-italic">Analytics</span>
+              Analytics <span className="font-bold text-[var(--color-accent)]">K&J</span>
             </h1>
-            <p className="text-gray-500 text-sm mt-1 uppercase tracking-[0.2em]">Gestão Analítica de Capital</p>
+            <p className="text-gray-500 text-sm mt-1 uppercase tracking-[0.2em]">Gestão analítica de capital</p>
+          </div>
+
+          <div className="flex items-center gap-4 px-4 py-3 bg-[var(--color-surface)]/40 border border-gray-800 rounded-2xl shadow-sm backdrop-blur-sm">
+            <div>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Selecione o período</p>
+              <div className="flex flex-col sm:flex-row gap-3 mt-2 w-full md:w-auto">
+                <DatePicker value={startDate} onChange={setStartDate} placeholder="Data inicial" className="w-full sm:w-[180px]" />
+                <DatePicker value={endDate} onChange={setEndDate} placeholder="Data final" className="w-full sm:w-[180px]" />
+              </div>
+            </div>
           </div>
         </header>
 
-        <section className="bg-[var(--color-surface)] p-4 rounded-2xl border border-gray-800 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-widest text-[var(--color-accent)]">Selecione o período</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <DatePicker
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="Data inicial"
-              className="w-full sm:w-[180px]"
-            />
-            <DatePicker
-              value={endDate}
-              onChange={setEndDate}
-              placeholder="Data final"
-              className="w-full sm:w-[180px]"
-            />
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 gap-12">
-          <section className="bg-[var(--color-surface)] p-8 rounded-2xl border border-gray-800 shadow-2xl">
-            <h2 className="text-xs font-bold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Evolução Mensal das Categorias</h2>
+        <div className="grid grid-cols-1 gap-8">
+          <section className="bg-[var(--color-surface)] p-6 rounded-2xl border border-gray-800 shadow-2xl">
+            <h2 className="text-xs font-semibold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Evolução mensal das categorias</h2>
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
                   <XAxis dataKey="name" stroke="#555" fontSize={11} axisLine={false} tickLine={false} dy={10} />
-                  <YAxis stroke="#555" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(v) => `R$ ${v.toFixed(2)}`} />
+                  <YAxis stroke="#555" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(value) => `R$ ${value.toFixed(2)}`} />
                   <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg)', border: '1px solid #333', borderRadius: '12px' }} />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                  {categories.map((cat, index) => (
+                  {categories.map((category, index) => (
                     <Line
-                      key={cat}
+                      key={category}
                       type="monotone"
-                      dataKey={cat}
-                      name={CATEGORY_LABELS[cat] ?? cat.replace(/_/g, ' ')}
+                      dataKey={category}
+                      name={CATEGORY_LABELS[category.toUpperCase()] ?? category.replace(/_/g, ' ')}
                       stroke={COLORS[index % COLORS.length]}
                       strokeWidth={3}
                       dot={{ r: 4, fill: COLORS[index % COLORS.length], strokeWidth: 0 }}
@@ -305,82 +315,77 @@ export function Analytics() {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <section className="bg-[var(--color-surface)] p-9 rounded-2xl border border-gray-800 shadow-2xl lg:col-span-2">
-              <h2 className="text-xs font-bold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Distribuição por Categoria (Despesas)</h2>
-              {categoryPieData.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 items-center">
-                  <div className="h-[340px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
+          <section className="bg-[var(--color-surface)] p-6 rounded-2xl border border-gray-800 shadow-2xl">
+            <h2 className="text-xs font-semibold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Distribuição por categoria (despesas)</h2>
+            {categoryPieData.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6 items-center">
+                <div className="h-[340px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
                       <Tooltip
                         formatter={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
                         contentStyle={{ backgroundColor: 'var(--color-bg)', border: '1px solid #333', borderRadius: '12px' }}
                       />
-                        <Legend iconType="circle" />
-                        <Pie
-                          data={categoryPieData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={80}
-                          outerRadius={140}
-                          paddingAngle={3}
-                        >
+                      <Legend iconType="circle" />
+                      <Pie
+                        data={categoryPieData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={80}
+                        outerRadius={140}
+                        paddingAngle={3}
+                      >
                         {categoryPieData.map((entry, index) => (
                           <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} stroke="transparent" />
                         ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-[var(--color-surface-2)] border border-gray-800 rounded-2xl p-4">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest">Total de despesas</p>
+                    <p className="text-2xl font-semibold text-[var(--color-text)] mt-2">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalExpense)}
+                    </p>
+                    {topCategory ? (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Maior categoria: <span className="text-[var(--color-accent)] font-semibold">{topCategory.name}</span>
+                      </p>
+                    ) : null}
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="bg-[var(--color-surface-2)] border border-gray-800 rounded-2xl p-4">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest">Total de despesas</p>
-                      <p className="text-2xl font-semibold text-[var(--color-text)] mt-2">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalExpense)}
-                      </p>
-                      {topCategory ? (
-                        <p className="text-xs text-gray-400 mt-2">
-                          Maior categoria: <span className="text-[var(--color-accent)] font-semibold">{topCategory.name}</span>
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-3 max-h-[260px] overflow-auto custom-scroll pr-1">
-                      {categoryDetails.map((entry) => (
-                        <div key={entry.name} className="flex items-center gap-3">
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-200">{entry.name}</span>
-                              <span className="text-gray-400">{entry.percent.toFixed(1)}%</span>
-                            </div>
-                            <div className="mt-2 h-2 w-full rounded-full bg-[var(--color-bg)] border border-gray-800 overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${Math.min(entry.percent, 100)}%`, backgroundColor: entry.color }}
-                              />
-                            </div>
+                  <div className="space-y-3 max-h-[260px] overflow-auto custom-scroll pr-1">
+                    {categoryDetails.map((entry) => (
+                      <div key={entry.name} className="flex items-center gap-3">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-200">{entry.name}</span>
+                            <span className="text-gray-400">{entry.percent.toFixed(1)}%</span>
                           </div>
-                          <span className="text-xs text-gray-400 min-w-[100px] text-right">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.value)}
-                          </span>
+                          <div className="mt-2 h-2 w-full rounded-full bg-[var(--color-bg)] border border-gray-800 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(entry.percent, 100)}%`, backgroundColor: entry.color }} />
+                          </div>
                         </div>
-                      ))}
-                    </div>
+                        <span className="text-xs text-gray-400 min-w-[100px] text-right">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.value)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">Nenhuma despesa no período selecionado.</p>
-              )}
-            </section>
-          </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Nenhuma despesa no período selecionado.</p>
+            )}
+          </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <section className="bg-[var(--color-surface)] p-8 rounded-2xl border border-gray-800 shadow-2xl">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+            <section className="bg-[var(--color-surface)] p-6 rounded-2xl border border-gray-800 shadow-2xl">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-accent)]">Resultado Operacional</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-accent)]">Resultado operacional</h2>
                 <TrendingUp size={16} className="text-gray-600" />
               </div>
               <div className="h-[300px] w-full">
@@ -398,8 +403,8 @@ export function Analytics() {
               </div>
             </section>
 
-            <section className="bg-[var(--color-surface)] p-8 rounded-2xl border border-gray-800 shadow-2xl">
-              <h2 className="text-xs font-bold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Evolução do Patrimônio</h2>
+            <section className="bg-[var(--color-surface)] p-6 rounded-2xl border border-gray-800 shadow-2xl">
+              <h2 className="text-xs font-semibold mb-8 uppercase tracking-widest text-[var(--color-accent)]">Evolução do patrimônio</h2>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
@@ -412,7 +417,7 @@ export function Analytics() {
                     <XAxis dataKey="name" stroke="#555" fontSize={11} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: 'var(--color-bg)', border: '1px solid #333', borderRadius: '12px' }}
-                      formatter={(v: number | string) => [`R$ ${Number(v).toFixed(2)}`, 'Patrimônio Total']}
+                      formatter={(value: number | string) => [`R$ ${Number(value).toFixed(2)}`, 'Patrimônio Total']}
                     />
                     <Area type="monotone" dataKey="cumulative" stroke="#60c06d" strokeWidth={3} fill="url(#colorPat)" />
                   </AreaChart>
@@ -425,3 +430,4 @@ export function Analytics() {
     </div>
   );
 }
+

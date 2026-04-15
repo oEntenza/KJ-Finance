@@ -3,18 +3,25 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  }
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 enum TransactionType {
   INCOME
   EXPENSE
 }
 
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  PIX
+  OTHERS
+}
+
 enum Category {
   SALARY
-  CREDIT_CARD
   HOUSING
   TRANSPORT
   FOOD
@@ -26,29 +33,51 @@ enum Category {
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
-  description String
-  amount      Decimal         @db.Decimal(10, 2)
-  type        TransactionType
-  category    Category        @default(OTHERS)
-  date        DateTime
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  user        User            @relation(fields: [userId], references: [id])
-  userId      String
+  id                  String          @id @default(uuid())
+  description         String
+  amount              Decimal         @db.Decimal(10, 2)
+  type                TransactionType
+  category            Category        @default(OTHERS)
+  paymentMethod       PaymentMethod   @default(OTHERS)
+  date                DateTime
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  user                User            @relation(fields: [userId], references: [id])
+  userId              String
+  creditCard          CreditCard?     @relation(fields: [creditCardId], references: [id])
+  creditCardId        String?
+  parentTransaction   Transaction?    @relation("TransactionChildren", fields: [parentTransactionId], references: [id], onDelete: Cascade)
+  parentTransactionId String?
+  childTransactions   Transaction[]   @relation("TransactionChildren")
+  isCardStatement     Boolean         @default(false)
+  statementMonth      Int?
+  statementYear       Int?
 
   @@map("transactions")
 }
 
-model User {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  password_hash String
-  createdAt     DateTime @default(now())
+model CreditCard {
+  id          String        @id @default(uuid())
+  name        String
+  limit       Decimal       @default(0) @db.Decimal(10, 2)
+  closingDay  Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id])
+  userId      String
+  transactions Transaction[]
 
-  // Relacionamento: Um usuário tem muitas transações
+  @@map("credit_cards")
+}
+
+model User {
+  id            String        @id @default(uuid())
+  name          String
+  email         String        @unique
+  password_hash String
+  createdAt     DateTime      @default(now())
   transactions  Transaction[]
+  creditCards   CreditCard[]
 
   @@map("users")
 }

@@ -1,82 +1,43 @@
-import { FastifyInstance } from 'fastify';
+﻿import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
+import { CATEGORY_VALUES, PAYMENT_METHOD_VALUES, calculateVisibleBalance, createTransactionEntry, listVisibleTransactions, serializeTransaction } from '../lib/finance';
+import { resolveAuthenticatedUserId } from '../lib/current-user';
 
 export async function transactionRoutes(app: FastifyInstance) {
-  
-  // 1. ROTA DE CRIAÇÃO (POST)
-  // Adicionamos { onRequest: [app.authenticate] } para validar o Token JWT
   app.post('/transactions', { onRequest: [app.authenticate] }, async (request, reply) => {
     const createTransactionSchema = z.object({
       description: z.string(),
-      amount: z.number(),
+      amount: z.coerce.number().min(0.01),
       type: z.enum(['INCOME', 'EXPENSE']),
-  category: z.enum([
-    'SALARY',
-    'CREDIT_CARD',
-    'HOUSING',
-    'TRANSPORT',
-    'FOOD',
-    'HEALTH_WELLNESS',
-    'LEISURE_ENTERTAINMENT',
-    'EDUCATION',
-    'FINANCE_INVESTMENTS',
-    'OTHERS',
-  ]),
+      category: z.enum(CATEGORY_VALUES),
+      paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
+      creditCardId: z.string().optional().nullable(),
+      installments: z.coerce.number().int().min(1).max(24).optional(),
       date: z.string().datetime(),
     });
 
-    const { description, amount, type, category, date } = createTransactionSchema.parse(request.body);
+    const userId = await resolveAuthenticatedUserId(request.user.sub);
+    const payload = createTransactionSchema.parse(request.body);
 
-    // Recuperamos o ID do usuário logado através do payload do token
-    const userId = request.user.sub;
-
-    const transaction = await prisma.transaction.create({
-      data: {
-        description,
-        amount,
-        type,
-        category,
-        date: new Date(date),
-        userId, // Vincula a transação ao usuário dono do token
-      },
-    });
-
-    return reply.status(201).send(transaction);
+    try {
+      const transaction = await createTransactionEntry(userId, payload);
+      return reply.status(201).send(serializeTransaction(transaction));
+    } catch (error) {
+      return reply.status(400).send({
+        message: error instanceof Error ? error.message : 'Falha ao criar o registro.',
+      });
+    }
   });
 
-  // 2. ROTA DE SALDO (GET)
   app.get('/transactions/balance', { onRequest: [app.authenticate] }, async (request) => {
-    const userId = request.user.sub;
-
-    // Filtramos para buscar apenas as transações do usuário logado
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        userId,
-      },
-    });
-
-    const balance = transactions.reduce((acc, transaction) => {
-      const amount = Number(transaction.amount);
-      return transaction.type === 'INCOME' ? acc + amount : acc - amount;
-    }, 0);
-
+    const userId = await resolveAuthenticatedUserId(request.user.sub);
+    const balance = await calculateVisibleBalance(userId);
     return { balance };
   });
 
-  // 3. ROTA DE HISTÓRICO (GET)
   app.get('/transactions', { onRequest: [app.authenticate] }, async (request) => {
-    const userId = request.user.sub;
-
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        userId,
-      },
-      orderBy: {
-        date: 'desc',
-      },
-    });
-
+    const userId = await resolveAuthenticatedUserId(request.user.sub);
+    const transactions = await listVisibleTransactions(userId);
     return { transactions };
   });
 }

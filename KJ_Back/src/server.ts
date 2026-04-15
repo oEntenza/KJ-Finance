@@ -1,13 +1,22 @@
-import Fastify from 'fastify';
+﻿import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import { z } from 'zod';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { prisma } from './lib/prisma';
+import { resolveAuthenticatedUserId } from './lib/current-user';
+import {
+  CATEGORY_VALUES,
+  PAYMENT_METHOD_VALUES,
+  createTransactionEntry,
+  deleteTransactionEntry,
+  updateTransactionEntry,
+} from './lib/finance';
 import { transactionRoutes } from './routes/transactions';
 import { userRoutes } from './routes/users';
 import { authRoutes } from './routes/auth';
+import { creditCardRoutes } from './routes/cards';
 
 const app = Fastify({ logger: true });
 
@@ -42,141 +51,90 @@ declare module 'fastify' {
   }
 }
 
-app.get('/health', async () => {
-  return { status: 'ok' };
-});
+app.get('/health', async () => ({ status: 'ok' }));
 
 app.put('/transactions/:id', { onRequest: [app.authenticate] }, async (request, reply) => {
-  const { id } = request.params as { id: string };
-  const { description, amount, type, category, date } = request.body as any;
-  const userId = request.user.sub;
+  const params = z.object({ id: z.string() });
+  const body = z.object({
+    description: z.string(),
+    amount: z.coerce.number().min(0.01),
+    type: z.enum(['INCOME', 'EXPENSE']),
+    category: z.enum(CATEGORY_VALUES),
+    paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
+    creditCardId: z.string().optional().nullable(),
+    installments: z.coerce.number().int().min(1).max(24).optional(),
+    date: z.string(),
+  });
+
+  const { id } = params.parse(request.params);
+  const payload = body.parse(request.body);
+  const userId = await resolveAuthenticatedUserId(request.user.sub);
 
   try {
-    const updated = await prisma.transaction.updateMany({
-      where: {
-        id,
-        userId,
-      },
-      data: {
-        description,
-        amount: Number(amount),
-        type,
-        category,
-        date: new Date(date),
-      },
-    });
-
-    if (updated.count === 0) {
-      return reply.status(404).send({ message: 'Registro não encontrado ou sem permissão.' });
-    }
-
+    await updateTransactionEntry(userId, id, payload);
     return reply.status(204).send();
   } catch (error) {
     app.log.error(error);
-    return reply.status(400).send({ message: 'Falha ao atualizar no K&J Finance.' });
+    return reply.status(400).send({
+      message: error instanceof Error ? error.message : 'Falha ao atualizar no K&J Finance.',
+    });
   }
 });
 
 app.delete('/transactions/:id', { onRequest: [app.authenticate] }, async (request, reply) => {
   const { id } = request.params as { id: string };
-  const userId = request.user.sub;
+  const userId = await resolveAuthenticatedUserId(request.user.sub);
 
   try {
-    const deleted = await prisma.transaction.deleteMany({
-      where: {
-        id,
-        userId,
-      },
-    });
-
-    if (deleted.count === 0) {
-      return reply.status(404).send({ message: 'Registro não encontrado.' });
-    }
-
+    await deleteTransactionEntry(userId, id);
     return reply.status(204).send();
   } catch (error) {
     app.log.error(error);
-    return reply.status(400).send({ message: 'Erro ao excluir: permissão negada.' });
+    return reply.status(400).send({
+      message: error instanceof Error ? error.message : 'Erro ao excluir registro.',
+    });
   }
 });
 
 app.delete('/transactions', { onRequest: [app.authenticate] }, async (request, reply) => {
-  const userId = request.user.sub;
+  const userId = await resolveAuthenticatedUserId(request.user.sub);
 
   try {
-    await prisma.transaction.deleteMany({
-      where: {
-        userId,
-      },
-    });
-
+    await prisma.transaction.deleteMany({ where: { userId } });
     return reply.status(204).send();
   } catch (error) {
     app.log.error(error);
-    return reply.status(400).send({ message: 'Erro ao excluir os registros do fluxo de caixa.' });
+    return reply.status(400).send({
+      message: 'Erro ao excluir os registros do fluxo de caixa.',
+    });
   }
 });
 
 app.post('/transactions/bulk', { onRequest: [app.authenticate] }, async (request, reply) => {
-  const userId = request.user.sub;
-  const { transactions } = request.body as { transactions: any[] };
+  const userId = await resolveAuthenticatedUserId(request.user.sub);
+  const body = z.object({
+    transactions: z.array(z.object({
+      description: z.string(),
+      amount: z.coerce.number().min(0.01),
+      type: z.enum(['INCOME', 'EXPENSE']),
+      category: z.enum(CATEGORY_VALUES),
+      paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
+      creditCardId: z.string().optional().nullable(),
+      installments: z.coerce.number().int().min(1).max(24).optional(),
+      date: z.string(),
+    })),
+  });
+
+  const { transactions } = body.parse(request.body);
 
   try {
-    if (!Array.isArray(transactions) || transactions.length === 0) {
+    if (!transactions.length) {
       return reply.status(400).send({ message: 'Nenhum registro recebido para processamento.' });
     }
 
-    const allowedTypes = new Set(['INCOME', 'EXPENSE']);
-    const allowedCategories = new Set([
-      'SALARY',
-      'CREDIT_CARD',
-      'HOUSING',
-      'TRANSPORT',
-      'FOOD',
-      'HEALTH_WELLNESS',
-      'LEISURE_ENTERTAINMENT',
-      'EDUCATION',
-      'FINANCE_INVESTMENTS',
-      'OTHERS',
-    ]);
-
-    for (let i = 0; i < transactions.length; i += 1) {
-      const t = transactions[i];
-      if (!t || typeof t !== 'object') {
-        return reply.status(400).send({ message: `Registro ${i + 1} inválido.` });
-      }
-      if (!t.description || String(t.description).trim().length === 0) {
-        return reply.status(400).send({ message: `Registro ${i + 1}: descrição obrigatória.` });
-      }
-      const amount = Number(t.amount);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return reply.status(400).send({ message: `Registro ${i + 1}: valor inválido.` });
-      }
-      if (!allowedTypes.has(t.type)) {
-        return reply.status(400).send({ message: `Registro ${i + 1}: tipo inválido.` });
-      }
-      if (!allowedCategories.has(t.category)) {
-        return reply.status(400).send({ message: `Registro ${i + 1}: categoria inválida.` });
-      }
-      const parsedDate = new Date(t.date);
-      if (Number.isNaN(parsedDate.getTime())) {
-        return reply.status(400).send({ message: `Registro ${i + 1}: data inválida.` });
-      }
+    for (const transaction of transactions) {
+      await createTransactionEntry(userId, transaction);
     }
-
-    const formattedTransactions = transactions.map((t) => ({
-      description: t.description,
-      amount: Number(t.amount),
-      type: t.type,
-      category: t.category,
-      date: new Date(t.date),
-      userId,
-    }));
-
-    await prisma.transaction.createMany({
-      data: formattedTransactions,
-      skipDuplicates: true,
-    });
 
     return reply.status(201).send({ message: 'Carga em massa concluída!' });
   } catch (error) {
@@ -192,9 +150,8 @@ app.post('/transactions/bulk', { onRequest: [app.authenticate] }, async (request
 app.register(authRoutes);
 app.register(transactionRoutes);
 app.register(userRoutes);
+app.register(creditCardRoutes);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const frontDistPath = path.resolve(__dirname, '../../KJ_Front/dist');
 
 const mimeTypes: Record<string, string> = {
@@ -246,3 +203,4 @@ const start = async () => {
 };
 
 start();
+

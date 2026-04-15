@@ -1,7 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BarChart2, Search, Filter, Trash2, Box } from 'lucide-react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Filter, Search, Trash2 } from 'lucide-react';
 import { SummaryCard } from '../components/SummaryCard';
 import { TransactionTable, TransactionTableHandle } from '../components/TransactionTable';
 import { NewTransactionForm } from '../components/NewTransactionForm';
@@ -10,21 +8,48 @@ import { DatePicker } from '../components/DatePicker';
 import { SelectDropdown } from '../components/SelectDropdown';
 import { api } from '../lib/api';
 import { useDialog } from '../components/DialogProvider';
+import { CATEGORY_OPTIONS } from '../lib/finance';
+
+interface CreditCardSummary {
+  id: string;
+  name: string;
+  closingDay: number;
+}
+
+interface TransactionItem {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'INCOME' | 'EXPENSE';
+  category: string;
+  paymentMethod: string;
+  date: string;
+  isCardStatement?: boolean;
+  statementMonth?: number | null;
+  statementYear?: number | null;
+  creditCard?: CreditCardSummary | null;
+  childTransactions?: TransactionItem[];
+}
+
+function normalizeDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
 
 export function Dashboard() {
   const [balance, setBalance] = useState(0);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [selectionInfo, setSelectionInfo] = useState({ selectedCount: 0, editingCount: 0 });
   const [serverOnline, setServerOnline] = useState(true);
-  const navigate = useNavigate();
-  const dialog = useDialog();
-  const tableRef = React.useRef<TransactionTableHandle | null>(null);
-
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const dialog = useDialog();
+  const tableRef = React.useRef<TransactionTableHandle | null>(null);
+
   const hasActiveFilters = Boolean(
     search ||
     categoryFilter !== 'ALL' ||
@@ -39,11 +64,12 @@ export function Dashboard() {
         api.get('/transactions/balance'),
         api.get('/transactions'),
       ]);
+
       setServerOnline(true);
       setBalance(balanceRes.data.balance);
-      setTransactions(transactionsRes.data.transactions);
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
+      setTransactions(transactionsRes.data.transactions || []);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
       setServerOnline(false);
     }
   }, []);
@@ -78,8 +104,8 @@ export function Dashboard() {
         title: 'Exclusão concluída',
         message: 'Todos os registros do fluxo de caixa foram excluídos com sucesso.',
       });
-    } catch (err) {
-      console.error('Erro ao excluir todos os registros:', err);
+    } catch (error) {
+      console.error('Erro ao excluir todos os registros:', error);
       await dialog.alert({
         title: 'Falha na exclusão',
         message: 'Não foi possível excluir todos os registros. Tente novamente.',
@@ -88,32 +114,64 @@ export function Dashboard() {
   }
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((transaction) => {
-      const matchesSearch = transaction.description.toLowerCase().includes(search.toLowerCase());
+    const normalizedSearch = search.trim().toLowerCase();
+
+    function matchesTransaction(transaction: TransactionItem) {
+      const transactionDate = normalizeDate(transaction.date);
+      if (!transactionDate) return false;
+
+      const matchesSearch =
+        !normalizedSearch ||
+        transaction.description.toLowerCase().includes(normalizedSearch) ||
+        transaction.creditCard?.name?.toLowerCase().includes(normalizedSearch);
       const matchesCategory = categoryFilter === 'ALL' || transaction.category === categoryFilter;
       const matchesType = typeFilter === 'ALL' || transaction.type === typeFilter;
-
-      const transDate = new Date(transaction.date);
-      const matchesStartDate = !startDate || transDate >= new Date(startDate + 'T00:00:00');
-      const matchesEndDate = !endDate || transDate <= new Date(endDate + 'T23:59:59');
+      const matchesStartDate = !startDate || transactionDate >= new Date(`${startDate}T00:00:00`);
+      const matchesEndDate = !endDate || transactionDate <= new Date(`${endDate}T23:59:59`);
 
       return matchesSearch && matchesCategory && matchesType && matchesStartDate && matchesEndDate;
+    }
+
+    return transactions.flatMap((transaction) => {
+      if (!transaction.isCardStatement) {
+        return matchesTransaction(transaction) ? [transaction] : [];
+      }
+
+      const filteredChildren = (transaction.childTransactions || []).filter(matchesTransaction);
+      if (!filteredChildren.length) return [];
+
+      const filteredAmount = filteredChildren.reduce((sum, item) => sum + Number(item.amount), 0);
+      return [
+        {
+          ...transaction,
+          amount: filteredAmount,
+          childTransactions: filteredChildren,
+        },
+      ];
     });
   }, [transactions, search, categoryFilter, typeFilter, startDate, endDate]);
+
+  const visibleRowsCount = useMemo(() => {
+    return filteredTransactions.reduce((count, transaction) => {
+      if (transaction.isCardStatement) {
+        return count + 1 + (transaction.childTransactions?.length || 0);
+      }
+      return count + 1;
+    }, 0);
+  }, [filteredTransactions]);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col font-sans selection:bg-[#C0A060]/30">
       <DashboardHeader />
 
       <main className="w-full px-8 py-12">
-
         <header className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             <div>
-              <h1 className="text-4xl font-light text-gray-100 tracking-tight">
+              <h1 className="text-4xl font-light text-gray-100 tracking-tight italic">
                 Dashboard <span className="font-bold text-[var(--color-accent)]">K&J</span>
               </h1>
-              <p className="text-gray-500 text-sm mt-1 uppercase tracking-[0.2em]">Gestão Analítica de Capital</p>
+              <p className="text-gray-500 text-sm mt-1 uppercase tracking-[0.2em]">Gerenciamento do Fluxo de Caixa</p>
             </div>
           </div>
 
@@ -130,21 +188,21 @@ export function Dashboard() {
                   </span>
                 </div>
               </div>
-              <div className="h-8 w-[1px] bg-gray-800 hidden xl:block"></div>
+              <div className="h-8 w-[1px] bg-gray-800 hidden xl:block" />
               <div className="hidden xl:block">
                 <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Sincronização</p>
                 <p className="text-[11px] text-gray-400 font-mono mt-1">Neon DB: {transactions.length} registros</p>
               </div>
             </div>
             <div className="text-right border-l border-gray-800 pl-6">
-              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Última Atualização</p>
+              <p className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Última atualização</p>
               <p className="text-[11px] text-[var(--color-accent)] font-mono mt-1">{new Date().toLocaleTimeString('pt-BR')}</p>
             </div>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          <aside className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <aside className="lg:col-span-2 self-start">
             <SummaryCard title="Patrimônio Líquido" amount={balance} type="total" />
           </aside>
 
@@ -167,7 +225,7 @@ export function Dashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="px-4 py-1 bg-[var(--color-bg)] border border-gray-800 rounded-full text-[10px] text-gray-400 font-mono uppercase">
-                    {filteredTransactions.length} exibidos
+                    {visibleRowsCount} exibidos
                   </span>
                   <button
                     type="button"
@@ -208,7 +266,7 @@ export function Dashboard() {
                     autoCapitalize="none"
                     className="w-full bg-[var(--color-bg)] border border-gray-800 p-2.5 pl-10 rounded-xl text-gray-200 text-xs focus:border-[var(--color-accent)]/50 outline-none transition-all"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(event) => setSearch(event.target.value)}
                   />
                 </div>
 
@@ -218,19 +276,7 @@ export function Dashboard() {
                     className="pl-9"
                     value={categoryFilter}
                     onChange={setCategoryFilter}
-                    options={[
-                      { value: 'ALL', label: 'Todos' },
-                      { value: 'SALARY', label: 'Salário' },
-                      { value: 'CREDIT_CARD', label: 'Cartão de Crédito' },
-                      { value: 'HOUSING', label: 'Habitação' },
-                      { value: 'TRANSPORT', label: 'Transporte' },
-                      { value: 'FOOD', label: 'Alimentação' },
-                      { value: 'HEALTH_WELLNESS', label: 'Saúde e Bem-estar' },
-                      { value: 'LEISURE_ENTERTAINMENT', label: 'Lazer e entretenimento' },
-                      { value: 'EDUCATION', label: 'Educação' },
-                      { value: 'FINANCE_INVESTMENTS', label: 'Finanças e Investimentos' },
-                      { value: 'OTHERS', label: 'Outros' },
-                    ]}
+                    options={[{ value: 'ALL', label: 'Todos' }, ...CATEGORY_OPTIONS]}
                   />
                 </div>
 
@@ -248,34 +294,25 @@ export function Dashboard() {
                   />
                 </div>
 
-                <DatePicker
-                  value={startDate}
-                  onChange={setStartDate}
-                  placeholder="Data inicial"
-                />
-
-                <DatePicker
-                  value={endDate}
-                  onChange={setEndDate}
-                  placeholder="Data final"
-                />
+                <DatePicker value={startDate} onChange={setStartDate} placeholder="Data inicial" />
+                <DatePicker value={endDate} onChange={setEndDate} placeholder="Data final" />
               </div>
 
               {(selectionInfo.selectedCount > 0 || selectionInfo.editingCount > 0) && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-800 bg-[var(--color-bg)] px-4 py-3 text-[10px] uppercase tracking-widest text-gray-400">
-                  <span>
-                    {selectionInfo.selectedCount} selecionada(s)
-                  </span>
+                  <span>{selectionInfo.selectedCount} selecionada(s)</span>
                   <div className="flex items-center gap-2">
                     {selectionInfo.editingCount > 0 ? (
                       <>
                         <button
+                          type="button"
                           onClick={() => tableRef.current?.saveSelected()}
                           className="h-[30px] px-3 rounded-lg bg-[var(--color-accent)] text-[var(--color-bg)] font-bold"
                         >
                           Salvar edições
                         </button>
                         <button
+                          type="button"
                           onClick={() => tableRef.current?.cancelSelectedEdits()}
                           className="h-[30px] px-3 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-500"
                         >
@@ -285,12 +322,14 @@ export function Dashboard() {
                     ) : (
                       <>
                         <button
+                          type="button"
                           onClick={() => tableRef.current?.editSelected()}
                           className="h-[30px] px-3 rounded-lg border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
                         >
                           Editar selecionadas
                         </button>
                         <button
+                          type="button"
                           onClick={() => tableRef.current?.deleteSelected()}
                           className="h-[30px] px-3 rounded-lg border border-rose-500/40 text-rose-400 hover:bg-rose-500/10"
                         >

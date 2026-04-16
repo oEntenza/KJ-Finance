@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Wallet, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useDialog } from '../components/DialogProvider';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL?.trim() || 'http://localhost:3333';
+
 export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const { register, handleSubmit } = useForm();
@@ -13,7 +15,7 @@ export function Login() {
 
   async function handleLogin(data: any) {
     try {
-      const response = await axios.post('http://localhost:3333/sessions', {
+      const response = await axios.post(`${apiBaseUrl}/sessions`, {
         email: data.email,
         password: data.password,
       });

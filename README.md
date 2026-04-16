@@ -35,6 +35,7 @@ O principal objetivo do sistema é oferecer uma solução prática e visual para
 - Página de perfil com edição de nome persistida no banco de dados.
 - Página de preferências com seleção de tema.
 - Temas visuais `Noir` e `Blanc`.
+- Integração com Pluggy para sincronização de contas e transações via Open Finance.
 
 ## Tecnologias utilizadas
 
@@ -108,6 +109,11 @@ Principais rotas:
 - `DELETE /transactions`: remoção de todas as transações do usuário.
 - `GET /transactions/balance`: cálculo do patrimônio líquido.
 - `POST /transactions/bulk`: importação em massa de registros.
+- `GET /pluggy/items`: lista os itens Pluggy vinculados ao usuário.
+- `POST /pluggy/connect-token`: gera o token para abrir o Pluggy Connect no frontend.
+- `POST /pluggy/items/register`: registra manualmente um `itemId` do Pluggy no backend.
+- `POST /pluggy/sync`: sincroniza contas e transações do Pluggy.
+- `POST /api/webhooks/pluggy`: recebe eventos do Pluggy.
 
 ## Instalação simplificada no Windows
 
@@ -208,6 +214,141 @@ O frontend ficará disponível em:
 ```text
 http://localhost:5173
 ```
+
+## Integração com Pluggy
+
+O projeto possui integração com a API da Pluggy para:
+
+- abrir o Pluggy Connect dentro do dashboard;
+- vincular contas bancárias ao usuário autenticado;
+- sincronizar transações do Open Finance com o fluxo de caixa;
+- receber webhooks de criação e atualização de itens e transações.
+
+### Variáveis de ambiente do backend
+
+No arquivo `KJ_Back/.env`:
+
+```env
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/nome_do_banco"
+JWT_SECRET="troque-esta-chave"
+PLUGGY_CLIENT_ID=""
+PLUGGY_CLIENT_SECRET=""
+PLUGGY_WEBHOOK_URL=""
+PLUGGY_WEBHOOK_SECRET=""
+```
+
+Descrição:
+
+- `PLUGGY_CLIENT_ID`: identificador da aplicação no Pluggy.
+- `PLUGGY_CLIENT_SECRET`: segredo da aplicação no Pluggy.
+- `PLUGGY_WEBHOOK_URL`: URL pública que o Pluggy usará para chamar o backend.
+- `PLUGGY_WEBHOOK_SECRET`: segredo opcional usado para validar chamadas de webhook.
+
+### Variáveis de ambiente do frontend
+
+No arquivo `KJ_Front/.env`:
+
+```env
+VITE_API_URL="https://SUA-URL-PUBLICA"
+```
+
+Descrição:
+
+- `VITE_API_URL`: URL base consumida pelo frontend.
+- Em desenvolvimento local, ela pode apontar para o tunnel público do Cloudflare em vez de `http://localhost:3333`.
+
+### Fluxo usado no frontend
+
+No dashboard, o usuário pode:
+
+- clicar em `Conectar banco` para abrir o Pluggy Connect;
+- concluir a autenticação da conta bancária;
+- permitir que o frontend receba o `itemId`;
+- registrar esse `itemId` no backend;
+- executar a sincronização automática do Pluggy;
+- visualizar as transações importadas no fluxo de caixa.
+
+Esse fluxo é importante porque o `itemId` precisa ser criado pelo próprio sistema para chegar associado ao usuário correto. Quando um item é criado fora do K&J Finance, o Pluggy pode enviar o webhook com `clientUserId: null`, e nesse caso o backend não consegue relacionar automaticamente o item à conta local.
+
+## Cloudflare Tunnel no ambiente local
+
+Como o Pluggy precisa chamar uma URL pública para entregar webhooks, durante o desenvolvimento local foi usado o `cloudflared` para expor o backend local (`localhost:3333`) na internet.
+
+### Comando usado
+
+```bash
+cloudflared tunnel --url http://localhost:3333
+```
+
+Exemplo de retorno:
+
+```text
+https://seu-tunnel.trycloudflare.com
+```
+
+### Como o tunnel foi usado no projeto
+
+Backend:
+
+- o `KJ_Back` continuou rodando localmente em `http://localhost:3333`;
+- o `PLUGGY_WEBHOOK_URL` foi configurado com a URL pública do tunnel:
+
+```env
+PLUGGY_WEBHOOK_URL="https://seu-tunnel.trycloudflare.com/api/webhooks/pluggy"
+```
+
+Frontend:
+
+- o `KJ_Front` foi configurado para consumir a mesma URL pública:
+
+```env
+VITE_API_URL="https://seu-tunnel.trycloudflare.com"
+```
+
+Isso permitiu que tanto o navegador quanto o painel do Pluggy acessassem o mesmo backend local.
+
+### Observação importante
+
+- a URL `trycloudflare.com` é temporária;
+- se o processo do `cloudflared` for encerrado, uma nova URL pode ser gerada;
+- quando isso acontecer, é necessário atualizar:
+  - `KJ_Back/.env`
+  - `KJ_Front/.env`
+  - a URL do webhook no painel da Pluggy
+
+## Configuração dos webhooks da Pluggy
+
+Para o ambiente de desenvolvimento local, foi usado um único endpoint no backend:
+
+```text
+POST /api/webhooks/pluggy
+```
+
+URL configurada no painel da Pluggy:
+
+```text
+https://seu-tunnel.trycloudflare.com/api/webhooks/pluggy
+```
+
+Eventos habilitados:
+
+- `item/created`
+- `item/updated`
+- `transactions/created`
+- `transactions/updated`
+
+### Comportamento esperado
+
+- `item/created` e `item/updated`: o backend registra ou atualiza o item Pluggy e suas contas locais.
+- `transactions/created` e `transactions/updated`: o backend executa a sincronização das transações para popular o fluxo de caixa.
+
+### Dicas de teste
+
+- mantenha o terminal do `cloudflared` aberto durante os testes;
+- reinicie o backend após alterar o `.env`;
+- reinicie o frontend após alterar `KJ_Front/.env`;
+- use o botão `Conectar banco` dentro do dashboard para garantir que o `itemId` seja criado com o usuário correto;
+- verifique os logs do backend e o console do navegador para acompanhar o recebimento e a sincronização dos dados.
 
 ## Modelagem de dados
 

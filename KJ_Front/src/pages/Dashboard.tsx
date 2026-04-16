@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Filter, Search, Trash2 } from 'lucide-react';
+import { Box, Filter, Landmark, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { SummaryCard } from '../components/SummaryCard';
 import { TransactionTable, TransactionTableHandle } from '../components/TransactionTable';
 import { NewTransactionForm } from '../components/NewTransactionForm';
@@ -9,6 +9,7 @@ import { SelectDropdown } from '../components/SelectDropdown';
 import { api } from '../lib/api';
 import { useDialog } from '../components/DialogProvider';
 import { CATEGORY_OPTIONS } from '../lib/finance';
+import { openPluggyConnect } from '../lib/pluggy-connect';
 
 interface CreditCardSummary {
   id: string;
@@ -47,8 +48,12 @@ export function Dashboard() {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [pluggyItemsCount, setPluggyItemsCount] = useState(0);
+  const [isConnectingPluggy, setIsConnectingPluggy] = useState(false);
+  const [isSyncingPluggy, setIsSyncingPluggy] = useState(false);
   const dialog = useDialog();
   const tableRef = React.useRef<TransactionTableHandle | null>(null);
+  const hasAttemptedPluggySyncRef = React.useRef(false);
 
   const hasActiveFilters = Boolean(
     search ||
@@ -74,9 +79,143 @@ export function Dashboard() {
     }
   }, []);
 
+  const tryAutoSyncPluggy = useCallback(async () => {
+    if (hasAttemptedPluggySyncRef.current) {
+      return;
+    }
+
+    hasAttemptedPluggySyncRef.current = true;
+
+    try {
+      const itemsRes = await api.get('/pluggy/items');
+      const items = itemsRes.data.items || [];
+      setPluggyItemsCount(items.length);
+
+      console.log('[Pluggy][Front] itens vinculados encontrados', items);
+
+      if (!items.length) {
+        console.warn('[Pluggy][Front] Nenhum item Pluggy vinculado para este usuario. Sem itemId nao ha como puxar os dados do Open Finance.');
+        return;
+      }
+
+      const syncRes = await api.post('/pluggy/sync', {});
+      console.log('[Pluggy][Front] resultado da sincronizacao automatica', syncRes.data);
+
+      await fetchData();
+    } catch (error) {
+      console.error('[Pluggy][Front] erro ao sincronizar automaticamente com o Pluggy', error);
+    }
+  }, [fetchData]);
+
+  const refreshPluggyItems = useCallback(async () => {
+    const response = await api.get('/pluggy/items');
+    const items = response.data.items || [];
+    setPluggyItemsCount(items.length);
+    console.log('[Pluggy][Front] lista atualizada de itens Pluggy', items);
+    return items;
+  }, []);
+
+  const handleManualPluggySync = useCallback(async () => {
+    setIsSyncingPluggy(true);
+
+    try {
+      const syncRes = await api.post('/pluggy/sync', {});
+      console.log('[Pluggy][Front] sincronizacao manual concluida', syncRes.data);
+      await fetchData();
+      await refreshPluggyItems();
+      await dialog.alert({
+        title: 'Pluggy sincronizado',
+        message: 'As transações do Open Finance foram sincronizadas com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('[Pluggy][Front] erro na sincronizacao manual', error);
+      await dialog.alert({
+        title: 'Falha na sincronização',
+        message: error?.response?.data?.message || 'Não foi possível sincronizar com o Pluggy.',
+      });
+    } finally {
+      setIsSyncingPluggy(false);
+    }
+  }, [dialog, fetchData, refreshPluggyItems]);
+
+  const handleConnectPluggy = useCallback(async () => {
+    setIsConnectingPluggy(true);
+
+    try {
+      const tokenResponse = await api.post('/pluggy/connect-token', {});
+      const connectToken = tokenResponse.data?.accessToken;
+
+      if (!connectToken) {
+        throw new Error('O backend não retornou accessToken do Pluggy.');
+      }
+
+      console.log('[Pluggy][Front] connect token recebido', tokenResponse.data);
+
+      await openPluggyConnect({
+        connectToken,
+        includeSandbox: true,
+        language: 'pt',
+        onOpen: () => {
+          console.log('[Pluggy][Front] widget Pluggy Connect aberto');
+        },
+        onClose: () => {
+          console.log('[Pluggy][Front] widget Pluggy Connect fechado');
+          setIsConnectingPluggy(false);
+        },
+        onEvent: (payload) => {
+          console.log('[Pluggy][Front] evento do widget Pluggy', payload);
+        },
+        onError: async (error) => {
+          console.error('[Pluggy][Front] erro no widget Pluggy Connect', error);
+          setIsConnectingPluggy(false);
+          await dialog.alert({
+            title: 'Falha na conexão bancária',
+            message: 'O Pluggy retornou um erro ao tentar conectar sua conta bancária.',
+          });
+        },
+        onSuccess: async (data) => {
+          console.log('[Pluggy][Front] sucesso no Pluggy Connect', data);
+
+          const itemId = data?.item?.id;
+          if (!itemId) {
+            throw new Error('O Pluggy Connect não retornou itemId.');
+          }
+
+          await api.post('/pluggy/items/register', { itemId });
+          const syncRes = await api.post('/pluggy/sync', { itemId });
+
+          console.log('[Pluggy][Front] item registrado e sincronizado', {
+            itemId,
+            sync: syncRes.data,
+          });
+
+          await refreshPluggyItems();
+          await fetchData();
+          setIsConnectingPluggy(false);
+
+          await dialog.alert({
+            title: 'Banco conectado',
+            message: 'A conta foi vinculada com sucesso e o fluxo de caixa foi atualizado.',
+          });
+        },
+      });
+    } catch (error: any) {
+      console.error('[Pluggy][Front] erro ao iniciar conexão com Pluggy', error);
+      setIsConnectingPluggy(false);
+      await dialog.alert({
+        title: 'Falha ao abrir Pluggy',
+        message: error?.response?.data?.message || error?.message || 'Não foi possível iniciar a conexão com o Pluggy.',
+      });
+    }
+  }, [dialog, fetchData, refreshPluggyItems]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    tryAutoSyncPluggy();
+  }, [tryAutoSyncPluggy]);
 
   async function handleDeleteAllTransactions() {
     if (!transactions.length) {
@@ -224,6 +363,27 @@ export function Dashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <span className="px-4 py-1 bg-[var(--color-bg)] border border-gray-800 rounded-full text-[10px] text-gray-400 font-mono uppercase">
+                    Pluggy: {pluggyItemsCount} item(ns)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleConnectPluggy}
+                    disabled={isConnectingPluggy}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30 rounded-xl text-[10px] text-[var(--color-accent)] font-bold uppercase tracking-[0.2em] transition-all duration-300 hover:bg-[var(--color-accent)] hover:text-[var(--color-bg)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Landmark size={14} className={isConnectingPluggy ? 'animate-pulse' : ''} />
+                    {isConnectingPluggy ? 'Conectando...' : 'Conectar banco'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleManualPluggySync}
+                    disabled={isSyncingPluggy || !pluggyItemsCount}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-bg)] border border-gray-800 rounded-xl text-[10px] text-gray-300 font-bold uppercase tracking-[0.2em] transition-all duration-300 hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw size={14} className={isSyncingPluggy ? 'animate-spin' : ''} />
+                    {isSyncingPluggy ? 'Sincronizando...' : 'Sincronizar Pluggy'}
+                  </button>
                   <span className="px-4 py-1 bg-[var(--color-bg)] border border-gray-800 rounded-full text-[10px] text-gray-400 font-mono uppercase">
                     {visibleRowsCount} exibidos
                   </span>

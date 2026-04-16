@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt';
 import { z } from 'zod';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import './lib/env';
 import { prisma } from './lib/prisma';
 import { resolveAuthenticatedUserId } from './lib/current-user';
 import {
@@ -17,11 +18,12 @@ import { transactionRoutes } from './routes/transactions';
 import { userRoutes } from './routes/users';
 import { authRoutes } from './routes/auth';
 import { creditCardRoutes } from './routes/cards';
+import { pluggyRoutes } from './routes/pluggy';
 
 const app = Fastify({ logger: true });
 
 app.register(jwt, {
-  secret: 'secreta',
+  secret: process.env.JWT_SECRET || 'secreta',
 });
 
 app.register(cors, {
@@ -151,6 +153,7 @@ app.register(authRoutes);
 app.register(transactionRoutes);
 app.register(userRoutes);
 app.register(creditCardRoutes);
+app.register(pluggyRoutes);
 
 const frontDistPath = path.resolve(__dirname, '../../KJ_Front/dist');
 

@@ -17,6 +17,7 @@ enum PaymentMethod {
   DEBIT_CARD
   CREDIT_CARD
   PIX
+  BANK_TRANSFER
   OTHERS
 }
 
@@ -32,6 +33,11 @@ enum Category {
   OTHERS
 }
 
+enum TransactionSource {
+  MANUAL
+  PLUGGY
+}
+
 model Transaction {
   id                  String          @id @default(uuid())
   description         String
@@ -40,10 +46,15 @@ model Transaction {
   category            Category        @default(OTHERS)
   paymentMethod       PaymentMethod   @default(OTHERS)
   date                DateTime
+  source              TransactionSource @default(MANUAL)
+  externalId          String?
+  externalData        Json?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   user                User            @relation(fields: [userId], references: [id])
   userId              String
+  pluggyAccount       PluggyAccount?  @relation(fields: [pluggyAccountId], references: [id])
+  pluggyAccountId     String?
   creditCard          CreditCard?     @relation(fields: [creditCardId], references: [id])
   creditCardId        String?
   parentTransaction   Transaction?    @relation("TransactionChildren", fields: [parentTransactionId], references: [id], onDelete: Cascade)
@@ -53,6 +64,7 @@ model Transaction {
   statementMonth      Int?
   statementYear       Int?
 
+  @@unique([source, externalId])
   @@map("transactions")
 }
 
@@ -78,6 +90,46 @@ model User {
   createdAt     DateTime      @default(now())
   transactions  Transaction[]
   creditCards   CreditCard[]
+  pluggyItems   PluggyItem[]
+  pluggyAccounts PluggyAccount[]
 
   @@map("users")
+}
+
+model PluggyItem {
+  id             String         @id @default(uuid())
+  pluggyItemId   String         @unique
+  status         String?
+  connectorName  String?
+  itemCreatedAt  DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  user           User           @relation(fields: [userId], references: [id])
+  userId         String
+  accounts       PluggyAccount[]
+
+  @@unique([userId, pluggyItemId])
+  @@map("pluggy_items")
+}
+
+model PluggyAccount {
+  id                     String        @id @default(uuid())
+  pluggyAccountId        String        @unique
+  name                   String
+  type                   String?
+  subtype                String?
+  currencyCode           String?
+  balance                Decimal?      @db.Decimal(14, 2)
+  lastSyncedAt           DateTime?
+  lastSuccessfulSyncAt   DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  user                   User          @relation(fields: [userId], references: [id])
+  userId                 String
+  item                   PluggyItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId                 String
+  transactions           Transaction[]
+
+  @@unique([itemId, pluggyAccountId])
+  @@map("pluggy_accounts")
 }

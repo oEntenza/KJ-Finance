@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Wallet, Mail, Lock, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useDialog } from '../components/DialogProvider';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL?.trim() || 'http://localhost:3333';
+
 export function SignUp() {
   const { register, handleSubmit } = useForm();
   const navigate = useNavigate();
@@ -12,7 +14,7 @@ export function SignUp() {
 
   async function handleSignUp(data: any) {
     try {
-      await axios.post('http://localhost:3333/users', {
+      await axios.post(`${apiBaseUrl}/users`, {
         name: data.name,
         email: data.email,
         password: data.password,

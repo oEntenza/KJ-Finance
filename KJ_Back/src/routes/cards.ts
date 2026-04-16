@@ -8,23 +8,21 @@ const creditCardService = new CreditCardService();
 export async function creditCardRoutes(app: FastifyInstance) {
   app.get('/credit-cards', { onRequest: [app.authenticate] }, async (request) => {
     const userId = await resolveAuthenticatedUserId(request.user.sub);
-    const cards = await creditCardService.listByUser(userId);
-    return { cards };
+    const result = await creditCardService.listByUser(userId);
+    return result;
   });
 
   app.post('/credit-cards', { onRequest: [app.authenticate] }, async (request, reply) => {
     const schema = z.object({
       name: z.string().min(2),
-      limit: z.coerce.number().min(0),
       closingDay: z.coerce.number().int().min(1).max(31),
     });
 
     const userId = await resolveAuthenticatedUserId(request.user.sub);
-    const { name, limit, closingDay } = schema.parse(request.body);
+    const { name, closingDay } = schema.parse(request.body);
 
     const card = await creditCardService.create({
       name,
-      limit,
       closingDay,
       userId,
     });
@@ -36,16 +34,15 @@ export async function creditCardRoutes(app: FastifyInstance) {
     const params = z.object({ id: z.string() });
     const body = z.object({
       name: z.string().min(2),
-      limit: z.coerce.number().min(0),
       closingDay: z.coerce.number().int().min(1).max(31),
     });
 
     const userId = await resolveAuthenticatedUserId(request.user.sub);
     const { id } = params.parse(request.params);
-    const { name, limit, closingDay } = body.parse(request.body);
+    const { name, closingDay } = body.parse(request.body);
 
     try {
-      const updated = await creditCardService.update(id, userId, { name, limit, closingDay });
+      const updated = await creditCardService.update(id, userId, { name, closingDay });
       return reply.send(updated);
     } catch (error: any) {
       const statusCode = error.message === 'Cartão não encontrado.' ? 404 : 400;

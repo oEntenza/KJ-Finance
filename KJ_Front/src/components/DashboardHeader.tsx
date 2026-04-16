@@ -5,7 +5,7 @@ import { Bell, CheckCircle2, LogOut, Moon, Sun, User, Wallet } from 'lucide-reac
 const HEADER_TABS = [
   { label: 'Dashboard', path: '/dashboard' },
   { label: 'Analytics', path: '/analytics' },
-  { label: 'Cartões', path: '/cards' },
+  { label: 'Cards', path: '/cards' },
 ];
 
 export function DashboardHeader() {

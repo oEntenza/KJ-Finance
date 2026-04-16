@@ -45,6 +45,8 @@ export function Dashboard() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
+  const [sortField, setSortField] = useState<'date' | 'description' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const dialog = useDialog();
@@ -54,6 +56,8 @@ export function Dashboard() {
     search ||
     categoryFilter !== 'ALL' ||
     typeFilter !== 'ALL' ||
+    sortField !== 'date' ||
+    sortDirection !== 'desc' ||
     startDate ||
     endDate,
   );
@@ -132,12 +136,41 @@ export function Dashboard() {
       return matchesSearch && matchesCategory && matchesType && matchesStartDate && matchesEndDate;
     }
 
-    return transactions.flatMap((transaction) => {
+    function getComparableValue(transaction: TransactionItem) {
+      if (sortField === 'description') {
+        return transaction.description.toLowerCase();
+      }
+
+      if (sortField === 'amount') {
+        return Number(transaction.amount);
+      }
+
+      const transactionDate = normalizeDate(transaction.date);
+      return transactionDate ? transactionDate.getTime() : 0;
+    }
+
+    function sortTransactions(list: TransactionItem[]) {
+      return [...list].sort((a, b) => {
+        const aValue = getComparableValue(a);
+        const bValue = getComparableValue(b);
+
+        let result = 0;
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          result = aValue.localeCompare(bValue, 'pt-BR');
+        } else {
+          result = Number(aValue) - Number(bValue);
+        }
+
+        return sortDirection === 'asc' ? result : -result;
+      });
+    }
+
+    const nextTransactions = transactions.flatMap((transaction) => {
       if (!transaction.isCardStatement) {
         return matchesTransaction(transaction) ? [transaction] : [];
       }
 
-      const filteredChildren = (transaction.childTransactions || []).filter(matchesTransaction);
+      const filteredChildren = sortTransactions((transaction.childTransactions || []).filter(matchesTransaction));
       if (!filteredChildren.length) return [];
 
       const filteredAmount = filteredChildren.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -149,7 +182,9 @@ export function Dashboard() {
         },
       ];
     });
-  }, [transactions, search, categoryFilter, typeFilter, startDate, endDate]);
+
+    return sortTransactions(nextTransactions);
+  }, [transactions, search, categoryFilter, typeFilter, sortField, sortDirection, startDate, endDate]);
 
   const visibleRowsCount = useMemo(() => {
     return filteredTransactions.reduce((count, transaction) => {
@@ -233,6 +268,8 @@ export function Dashboard() {
                       setSearch('');
                       setCategoryFilter('ALL');
                       setTypeFilter('ALL');
+                      setSortField('date');
+                      setSortDirection('desc');
                       setStartDate('');
                       setEndDate('');
                     }}
@@ -346,6 +383,16 @@ export function Dashboard() {
           <TransactionTable
             ref={tableRef}
             transactions={filteredTransactions}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortChange={(field) => {
+              if (field === sortField) {
+                setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+                return;
+              }
+              setSortField(field);
+              setSortDirection(field === 'date' ? 'desc' : 'asc');
+            }}
             onTransactionUpdated={fetchData}
             onSelectionChange={setSelectionInfo}
           />
@@ -354,3 +401,4 @@ export function Dashboard() {
     </div>
   );
 }
+

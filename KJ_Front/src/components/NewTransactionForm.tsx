@@ -34,7 +34,6 @@ interface NewTransactionFormProps {
 interface CreditCardItem {
   id: string;
   name: string;
-  limit: number;
   closingDay: number;
 }
 
@@ -44,14 +43,14 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
   const [bulkFileData, setBulkFileData] = useState<ArrayBuffer | null>(null);
   const [cards, setCards] = useState<CreditCardItem[]>([]);
   const [newCardName, setNewCardName] = useState('');
-  const [newCardLimit, setNewCardLimit] = useState('');
   const [newCardClosingDay, setNewCardClosingDay] = useState('');
+  const [amountInputValue, setAmountInputValue] = useState('');
   const dialog = useDialog();
   const navigate = useNavigate();
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { isSubmitting, errors } } = useForm<NewTransactionFormInputs>({
+  const { register, handleSubmit, reset, resetField, setValue, watch, formState: { isSubmitting, errors } } = useForm<NewTransactionFormInputs>({
     resolver: zodResolver(newTransactionFormSchema),
-    defaultValues: { type: 'INCOME', category: 'OTHERS', paymentMethod: 'CASH', creditCardId: '', installments: 1 },
+    defaultValues: { type: 'INCOME', category: 'OTHERS', paymentMethod: 'PIX', creditCardId: '', installments: 1, description: '', date: '' },
   });
 
   const amountValue = watch('amount');
@@ -84,21 +83,6 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
     setCards(response.data.cards || []);
   }
 
-  function handleCardLimitChange(value: string) {
-    if (!value) {
-      setNewCardLimit('');
-      return;
-    }
-
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) return;
-    setNewCardLimit(String(Math.max(0, parsed)));
-  }
-
-  function updateCardLimit(delta: number) {
-    const current = Number(newCardLimit || 0);
-    setNewCardLimit(String(Math.max(0, current + delta)));
-  }
 
   function handleClosingDayChange(value: string) {
     if (!value) {
@@ -191,7 +175,6 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
 
     const response = await api.post('/credit-cards', {
       name: newCardName,
-      limit: Number(newCardLimit || 0),
       closingDay: Number(newCardClosingDay),
     });
 
@@ -324,9 +307,11 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
         date: new Date(`${data.date}T12:00:00`).toISOString(),
       });
 
-      reset({ type: 'INCOME', category: 'OTHERS', paymentMethod: 'CASH', creditCardId: '', installments: 1 });
+      reset({ type: 'INCOME', category: 'OTHERS', paymentMethod: 'PIX', creditCardId: '', installments: 1, description: '', date: '' });
+      resetField('amount');
+      setValue('amount', undefined as never, { shouldValidate: false, shouldDirty: false, shouldTouch: false });
+      setAmountInputValue('');
       setNewCardName('');
-      setNewCardLimit('');
       setNewCardClosingDay('');
       onTransactionCreated();
       await fetchCards();
@@ -369,10 +354,22 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
             <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1">Montante</label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
-              <input {...register('amount', { valueAsNumber: true })} type="number" step="0.01" placeholder="0,00" className={`no-spinner w-full bg-[var(--color-bg)] border p-2.5 pl-9 pr-10 rounded-xl text-gray-200 outline-none focus:border-[var(--color-accent)]/50 text-xs transition-all ${errors.amount ? 'border-[var(--color-accent)]/60' : 'border-gray-800'}`} />
+              <input type="hidden" {...register('amount', { valueAsNumber: true })} />
+              <input
+                value={amountInputValue}
+                onChange={(event) => {
+                  const rawValue = event.target.value;
+                  setAmountInputValue(rawValue);
+                  setValue('amount', rawValue === '' ? undefined as never : Number(rawValue), { shouldValidate: true });
+                }}
+                type="number"
+                step="0.01"
+                placeholder="0,00"
+                className={`no-spinner w-full bg-[var(--color-bg)] border p-2.5 pl-9 pr-10 rounded-xl text-gray-200 outline-none focus:border-[var(--color-accent)]/50 text-xs transition-all ${errors.amount ? 'border-[var(--color-accent)]/60' : 'border-gray-800'}`}
+              />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                <button type="button" onClick={() => setValue('amount', Math.max(0, (Number(amountValue) || 0) + 1), { shouldValidate: true })} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]"><ChevronUp size={14} /></button>
-                <button type="button" onClick={() => setValue('amount', Math.max(0, (Number(amountValue) || 0) - 1), { shouldValidate: true })} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]"><ChevronDown size={14} /></button>
+                <button type="button" onClick={() => { const nextValue = String(Math.max(0, (Number(amountValue) || 0) + 1)); setAmountInputValue(nextValue); setValue('amount', Number(nextValue), { shouldValidate: true }); }} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]"><ChevronUp size={14} /></button>
+                <button type="button" onClick={() => { const nextValue = String(Math.max(0, (Number(amountValue) || 0) - 1)); setAmountInputValue(nextValue); setValue('amount', Number(nextValue), { shouldValidate: true }); }} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]"><ChevronDown size={14} /></button>
               </div>
               {renderFieldError(errors.amount?.message)}
             </div>
@@ -416,7 +413,7 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
         </div>
 
         {selectedPaymentMethod === 'CREDIT_CARD' && (
-          <div className="gold-border gold-border-relative grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 rounded-2xl border border-transparent bg-[var(--color-bg)] p-4">
+          <div className="gold-border gold-border-relative grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 rounded-2xl border border-transparent bg-[var(--color-bg)] p-4">
             <div className="md:col-span-2 xl:col-span-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[var(--color-accent)]/10 rounded-lg text-[var(--color-accent)]">
@@ -475,21 +472,6 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
                 <div>
                   <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Nome do cartão</label>
                   <input value={newCardName} onChange={(event) => setNewCardName(event.target.value)} placeholder="Ex: Nubank" className="w-full bg-[var(--color-surface)] border border-gray-800 p-3 rounded-xl text-sm text-gray-200 outline-none focus:border-[var(--color-accent)]/50" />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Limite</label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
-                    <input value={newCardLimit} onChange={(event) => handleCardLimitChange(event.target.value)} type="number" min="0" step="0.01" placeholder="Limite disponível no cartão" className="no-spinner w-full bg-[var(--color-surface)] border border-gray-800 p-3 pl-9 pr-10 rounded-xl text-sm text-gray-200 outline-none focus:border-[var(--color-accent)]/50" />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                      <button type="button" onClick={() => updateCardLimit(1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
-                        <ChevronUp size={14} />
-                      </button>
-                      <button type="button" onClick={() => updateCardLimit(-1)} className="h-4 w-5 flex items-center justify-center text-[var(--color-accent)] hover:text-[var(--color-accent-strong)]">
-                        <ChevronDown size={14} />
-                      </button>
-                    </div>
-                  </div>
                 </div>
                 <div>
                   <label className="text-[9px] font-bold text-[var(--color-accent)] uppercase ml-1 mb-1 block">Fechamento da fatura</label>
@@ -596,4 +578,11 @@ export function NewTransactionForm({ onTransactionCreated }: NewTransactionFormP
     </section>
   );
 }
+
+
+
+
+
+
+
 

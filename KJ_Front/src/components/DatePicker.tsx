@@ -8,7 +8,7 @@ type DatePickerProps = {
   className?: string;
 };
 
-const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b'];
+const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function toDisplay(value: string) {
   if (!value) return '';

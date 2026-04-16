@@ -15,6 +15,9 @@ import {
   Trash2,
   WalletCards,
   X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useDialog } from './DialogProvider';
@@ -56,6 +59,9 @@ interface EditableTransaction extends Transaction {
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  sortField: 'date' | 'description' | 'amount';
+  sortDirection: 'asc' | 'desc';
+  onSortChange: (field: 'date' | 'description' | 'amount') => void;
   onTransactionUpdated: () => void;
   onSelectionChange?: (info: { selectedCount: number; editingCount: number }) => void;
 }
@@ -75,8 +81,33 @@ function formatDate(date: string) {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(date));
 }
 
+function renderSortLabel(
+  label: string,
+  field: 'date' | 'description' | 'amount',
+  activeField: 'date' | 'description' | 'amount',
+  direction: 'asc' | 'desc',
+  onSortChange: (field: 'date' | 'description' | 'amount') => void,
+) {
+  const isActive = activeField === field;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSortChange(field)}
+      className={`inline-flex items-center gap-2 transition-colors ${isActive ? 'text-[var(--color-accent-strong)]' : 'hover:text-[var(--color-accent-strong)]'}`}
+    >
+      <span>{label}</span>
+      {isActive ? (
+        direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+      ) : (
+        <ArrowUpDown size={12} className="opacity-45" />
+      )}
+    </button>
+  );
+}
+
 export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTableProps>(function TransactionTable(
-  { transactions, onTransactionUpdated, onSelectionChange },
+  { transactions, sortField, sortDirection, onSortChange, onTransactionUpdated, onSelectionChange },
   ref,
 ) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
@@ -625,12 +656,12 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
                 )}
               </button>
             </th>
-            <th className="px-6 py-3">Descrição</th>
-            <th className="px-6 py-3">Valor</th>
+            <th className="px-6 py-3">{renderSortLabel('Descrição', 'description', sortField, sortDirection, onSortChange)}</th>
+            <th className="px-6 py-3">{renderSortLabel('Valor', 'amount', sortField, sortDirection, onSortChange)}</th>
             <th className="px-6 py-3">Natureza</th>
             <th className="px-6 py-3">Categoria</th>
             <th className="px-6 py-3">Meio de pagamento</th>
-            <th className="px-6 py-3">Data</th>
+            <th className="px-6 py-3">{renderSortLabel('Data', 'date', sortField, sortDirection, onSortChange)}</th>
             <th className="px-6 py-3 text-right">Ações</th>
           </tr>
         </thead>

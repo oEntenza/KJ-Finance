@@ -49,6 +49,50 @@ export function buildStatementDate(statementMonth: number, statementYear: number
   return new Date(Date.UTC(statementYear, statementMonth - 1, statementDay, 12, 0, 0));
 }
 
+export function isVisibleStatementPeriod(statementMonth?: number | null, statementYear?: number | null, statementDateValue?: Date | string | null) {
+  if (!statementMonth || !statementYear) return true;
+
+  if (statementDateValue) {
+    const statementDate = new Date(statementDateValue);
+    const visibleFrom = new Date(Date.UTC(
+      statementDate.getUTCFullYear(),
+      statementDate.getUTCMonth() - 1,
+      statementDate.getUTCDate() + 1,
+      12,
+      0,
+      0,
+      0,
+    ));
+
+    const now = new Date();
+    const todayKey = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const visibleFromKey = Date.UTC(
+      visibleFrom.getUTCFullYear(),
+      visibleFrom.getUTCMonth(),
+      visibleFrom.getUTCDate(),
+    );
+
+    return todayKey >= visibleFromKey;
+  }
+
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  if (statementYear < currentYear) return true;
+  if (statementYear > currentYear) return false;
+  return statementMonth <= currentMonth;
+}
+
+export function isVisibleStatementTransaction(transaction: {
+  isCardStatement?: boolean | null;
+  statementMonth?: number | null;
+  statementYear?: number | null;
+  date?: Date | string | null;
+}) {
+  if (!transaction.isCardStatement) return true;
+  return isVisibleStatementPeriod(transaction.statementMonth, transaction.statementYear, transaction.date);
+}
 function addMonthsToPeriod(statementMonth: number, statementYear: number, offset: number) {
   const baseDate = new Date(Date.UTC(statementYear, statementMonth - 1 + offset, 1, 12, 0, 0));
   return {
@@ -81,8 +125,9 @@ export function serializeTransaction(transaction: any): any {
       : undefined,
     creditCard: transaction.creditCard
       ? {
-          ...transaction.creditCard,
-          limit: Number(transaction.creditCard.limit),
+          id: transaction.creditCard.id,
+          name: transaction.creditCard.name,
+          closingDay: transaction.creditCard.closingDay,
         }
       : undefined,
   };
@@ -347,7 +392,9 @@ export async function listVisibleTransactions(userId: string) {
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
   });
 
-  return transactions.map(serializeTransaction);
+  return transactions
+    .filter(isVisibleStatementTransaction)
+    .map(serializeTransaction);
 }
 
 export async function calculateVisibleBalance(userId: string) {
@@ -358,9 +405,16 @@ export async function calculateVisibleBalance(userId: string) {
     },
   });
 
-  return transactions.reduce((acc, transaction) => {
-    const amount = Number(transaction.amount);
-    return transaction.type === 'INCOME' ? acc + amount : acc - amount;
-  }, 0);
+  return transactions
+    .filter(isVisibleStatementTransaction)
+    .reduce((acc, transaction) => {
+      const amount = Number(transaction.amount);
+      return transaction.type === 'INCOME' ? acc + amount : acc - amount;
+    }, 0);
 }
+
+
+
+
+
 
